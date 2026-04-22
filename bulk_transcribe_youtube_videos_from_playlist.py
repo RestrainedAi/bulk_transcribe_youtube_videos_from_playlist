@@ -1,12 +1,11 @@
 import os
+import argparse
 import asyncio
 import re
 import sys
 import psutil
 import glob
-import openai
 import json
-import datetime
 import traceback
 from pytubefix import YouTube, Playlist
 import pandas as pd
@@ -14,7 +13,6 @@ from faster_whisper import WhisperModel
 from numba import cuda
 from pydub import AudioSegment
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor
 
 # Constants for pricing
 WHISPER_COST_PER_MINUTE = 0.006
@@ -27,11 +25,6 @@ max_simultaneous_youtube_downloads = 4
 disable_cuda_override = 0
 single_video_url = 'https://www.youtube.com/watch?v=sWAaJF9Wk0w'
 playlist_url = 'https://www.youtube.com/playlist?list=PLjpPMe3LP1XKgqqzqz4j6M8-_M_soYxiV'
-
-if convert_single_video:
-    print(f"Processing a single video: {single_video_url}")
-else:
-    print(f"Processing a playlist: {playlist_url}")
 
 def add_to_system_path(new_path):
     if new_path not in os.environ["PATH"].split(os.pathsep):
@@ -124,7 +117,7 @@ async def download_audio(video):
 def estimate_whisper_transcription_cost(audio_duration_seconds):
     audio_duration_minutes = audio_duration_seconds / 60
     estimated_cost = audio_duration_minutes * WHISPER_COST_PER_MINUTE
-    print(f"\n=== Estimated Whisper Transcription Cost ===")
+    print("\n=== Estimated Whisper Transcription Cost ===")
     print(f"Audio Duration: {audio_duration_minutes:.2f} minutes")
     print(f"Estimated Cost: ${estimated_cost:.4f}\n")
     return estimated_cost
@@ -189,7 +182,6 @@ async def compute_transcript_with_whisper_from_audio_func(audio_file_path, audio
             device = "cpu"
             compute_type = "auto"
         model = WhisperModel("large-v3", device=device, compute_type=compute_type)
-        request_time = datetime.datetime.now(datetime.UTC)
         print(f"Computing transcript for {audio_file_name} which has a {audio_file_size_mb:.2f}MB file size...")
         audio_duration_seconds = await get_audio_duration(audio_file_path)
         with tqdm(total=audio_duration_seconds, desc=f"Transcribing {audio_file_name}", unit="s") as pbar:
@@ -209,7 +201,7 @@ async def compute_transcript_with_whisper_from_audio_func(audio_file_path, audio
                 combined_transcript_text_list_of_metadata_dicts.append(metadata)
     if not combined_transcript_text_list_of_metadata_dicts:
         print(f"No segments were returned for file {audio_file_name}.")
-        return [], {}, "", [], datetime.datetime.now(datetime.UTC), datetime.datetime.now(datetime.UTC), 0, ""
+        return "", [], []
     with open(f'generated_transcript_combined_texts/{audio_file_name}.txt', 'w') as file:
         file.write(combined_transcript_text)
     df = pd.DataFrame(combined_transcript_text_list_of_metadata_dicts)
@@ -219,8 +211,11 @@ async def compute_transcript_with_whisper_from_audio_func(audio_file_path, audio
     remove_unwanted_segments_from_json(json_file_path)   
     return combined_transcript_text, combined_transcript_text_list_of_metadata_dicts, list_of_transcript_sentences
 
-async def process_video_or_playlist(url, max_simultaneous_downloads, max_workers_transcribe):
-    if convert_single_video:
+async def process_video_or_playlist(
+    url, max_simultaneous_downloads, max_workers_transcribe, *, single_video=None
+):
+    is_single = convert_single_video if single_video is None else single_video
+    if is_single:
         yt = YouTube(url)
         videos = [yt]
     else:
@@ -290,5 +285,54 @@ def merge_transcript_segments_into_combined_text(segments):
     return combined_text, list_of_metadata_dicts, list_of_sentences
 
 if __name__ == '__main__':
-    url_to_process = single_video_url if convert_single_video else playlist_url
-    asyncio.run(process_video_or_playlist(url_to_process, max_simultaneous_youtube_downloads, max_workers_transcribe))
+    parser = argparse.ArgumentParser(
+        description="Download YouTube audio and transcribe with Whisper (local or OpenAI API)."
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--single",
+        action="store_true",
+        help="Process one video URL (overrides convert_single_video in the script).",
+    )
+    mode.add_argument(
+        "--playlist",
+        action="store_true",
+        help="Process a playlist URL (overrides convert_single_video in the script).",
+    )
+    parser.add_argument(
+        "--url",
+        default=None,
+        help="Video or playlist URL. If omitted, uses single_video_url or playlist_url from the script.",
+    )
+    parser.add_argument(
+        "--max-downloads",
+        type=int,
+        default=None,
+        metavar="N",
+        help=f"Max parallel YouTube downloads (default: {max_simultaneous_youtube_downloads}).",
+    )
+    args = parser.parse_args()
+    if args.single:
+        is_single = True
+    elif args.playlist:
+        is_single = False
+    else:
+        is_single = convert_single_video
+    url_to_process = args.url or (single_video_url if is_single else playlist_url)
+    max_dl = (
+        max_simultaneous_youtube_downloads
+        if args.max_downloads is None
+        else args.max_downloads
+    )
+    if is_single:
+        print(f"Processing a single video: {url_to_process}")
+    else:
+        print(f"Processing a playlist: {url_to_process}")
+    asyncio.run(
+        process_video_or_playlist(
+            url_to_process,
+            max_dl,
+            max_workers_transcribe,
+            single_video=is_single,
+        )
+    )
