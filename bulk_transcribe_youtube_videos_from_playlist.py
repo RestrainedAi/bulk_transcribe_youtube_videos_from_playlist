@@ -1,7 +1,9 @@
 import os
 import argparse
 import asyncio
+import importlib
 import re
+import shutil
 import sys
 import psutil
 import glob
@@ -9,16 +11,18 @@ import json
 import traceback
 from pytubefix import YouTube, Playlist
 import pandas as pd
+import ctranslate2
 from faster_whisper import WhisperModel
 from numba import cuda
-from pydub import AudioSegment
 from tqdm import tqdm
 
 # Constants for pricing
 WHISPER_COST_PER_MINUTE = 0.006
 
 convert_single_video = 1
-use_spacy_for_sentence_splitting = 1
+# Default to regex splitting because SpaCy currently crashes this Windows venv.
+# You can flip this back to 1 later once the SpaCy environment is repaired.
+use_spacy_for_sentence_splitting = 0
 use_openai_api_for_transcription = 0
 openai_api_key = 'REPLACE_WITH_YOUR_API_KEY'
 max_simultaneous_youtube_downloads = 4
@@ -32,6 +36,36 @@ def add_to_system_path(new_path):
     if sys.platform == "win32" and ' ' in new_path and not new_path.startswith('"') and not new_path.endswith('"'):
         os.environ["PATH"] = f'"{new_path}"' + os.pathsep + os.environ["PATH"].replace(new_path, "")
 
+def ensure_ffmpeg_on_path():
+    if shutil.which("ffmpeg"):
+        return
+    candidates = []
+    env_dir = os.environ.get("FFMPEG_DIR")
+    if env_dir:
+        candidates.append(env_dir)
+    if sys.platform == "win32":
+        local = os.environ.get("LOCALAPPDATA", "")
+        candidates.extend(
+            [
+                os.path.join(local, "Microsoft", "WinGet", "Links"),
+                os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "ffmpeg", "bin"),
+                os.path.join(
+                    os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+                    "ffmpeg",
+                    "bin",
+                ),
+            ]
+        )
+    else:
+        candidates.extend(["/opt/homebrew/bin", "/usr/local/bin"])
+    for d in candidates:
+        if not d:
+            continue
+        exe = os.path.join(d, "ffmpeg.exe") if sys.platform == "win32" else os.path.join(d, "ffmpeg")
+        if os.path.isfile(exe):
+            add_to_system_path(d)
+            return
+
 def get_cuda_toolkit_path():
     home_dir = os.path.expanduser('~')
     if sys.platform in ["win32", "linux", "linux2", "darwin"]:
@@ -42,10 +76,48 @@ def get_cuda_toolkit_path():
         return cuda_paths[0]
     return None
 
+
+def gpu_available_for_whisper() -> bool:
+    """
+    Detect GPU availability for faster-whisper.
+    Numba can report False on some Windows setups even when CTranslate2 sees CUDA.
+    """
+    try:
+        if cuda.is_available():
+            return True
+    except Exception:
+        pass
+    try:
+        return ctranslate2.get_cuda_device_count() > 0
+    except Exception:
+        return False
+
+
+def ensure_cuda_runtime_dlls_on_path() -> None:
+    """
+    Make sure CUDA runtime DLL folders from pip wheels are on PATH.
+    This avoids runtime errors like missing cublas64_12.dll on Windows.
+    """
+    if sys.platform != "win32":
+        return
+    candidates = [
+        os.path.join(sys.prefix, "Lib", "site-packages", "nvidia", "cublas", "bin"),
+        os.path.join(sys.prefix, "Lib", "site-packages", "nvidia", "cudnn", "bin"),
+        os.path.join(sys.prefix, "Lib", "site-packages", "nvidia", "cuda_nvrtc", "bin"),
+        os.path.join(sys.prefix, "Lib", "site-packages", "ctranslate2"),
+    ]
+    for p in candidates:
+        if os.path.isdir(p):
+            add_to_system_path(p)
+
 cuda_toolkit_path = get_cuda_toolkit_path()
 print("CUDA Toolkit Path:", cuda_toolkit_path)
 if cuda_toolkit_path:
     add_to_system_path(cuda_toolkit_path)
+
+ensure_ffmpeg_on_path()
+ensure_cuda_runtime_dlls_on_path()
+from pydub import AudioSegment  # noqa: E402 — import after PATH so pydub finds ffmpeg
 
 max_workers_transcribe = psutil.cpu_count(logical=False)  # Number of physical cores
 
@@ -62,6 +134,8 @@ if use_spacy_for_sentence_splitting:
         except OSError:
             print(f"Downloading spaCy model {model_name}...")
             spacy.cli.download(model_name)
+            importlib.invalidate_caches()
+            importlib.import_module(model_name)
             return spacy.load(model_name)
     nlp = download_spacy_model()  
     def sophisticated_sentence_splitter(text):
@@ -139,7 +213,12 @@ def remove_unwanted_segments_from_json(json_file_path, unwanted_text="Subtitles 
     else:
         print(f"No unwanted segments found in {json_file_path}.")
         
-async def compute_transcript_with_whisper_from_audio_func(audio_file_path, audio_file_name, audio_file_size_mb):
+async def compute_transcript_with_whisper_from_audio_func(
+    audio_file_path,
+    audio_file_name,
+    audio_file_size_mb,
+    progress_callback=None,
+):
     cuda_toolkit_path = get_cuda_toolkit_path()
     if cuda_toolkit_path:
         add_to_system_path(cuda_toolkit_path)
@@ -173,7 +252,7 @@ async def compute_transcript_with_whisper_from_audio_func(audio_file_path, audio
         ]
     else:
         print(f"Using local Whisper model for transcription of {audio_file_name}...")
-        if cuda.is_available() and not disable_cuda_override:
+        if gpu_available_for_whisper() and not disable_cuda_override:
             print("CUDA is available. Using GPU for transcription.")
             device = "cuda"
             compute_type = "float16"
@@ -189,6 +268,8 @@ async def compute_transcript_with_whisper_from_audio_func(audio_file_path, audio
             for segment in segments:
                 pbar.update(segment.end - segment.start)
                 print(f"Processing segment: [Start: {segment.start:.2f}s, End: {segment.end:.2f}s] for file {audio_file_name} with text: {segment.text}")
+                if progress_callback is not None:
+                    progress_callback(segment.start, segment.end, segment.text)
                 combined_transcript_text += segment.text + " "
                 sentences = sophisticated_sentence_splitter(segment.text)
                 list_of_transcript_sentences.extend(sentences)

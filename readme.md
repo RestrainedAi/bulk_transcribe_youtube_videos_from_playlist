@@ -4,15 +4,15 @@
 
 This Python-based tool is designed for transcribing YouTube videos and playlists into text. It integrates various technologies like faster-whisper for transcription, SpaCy for natural language processing, and CUDA for GPU acceleration, aimed at processing video content efficiently. The script is capable of handling both individual videos and entire playlists, outputting accurate transcripts along with metadata.
 
-| ![Bulk Transcripts Have Never Been This Easy!](https://github.com/Dicklesworthstone/bulk_transcribe_youtube_videos_from_playlist/blob/main/readme_image_2.webp) | 
+| ![ Wisper Signal Modulator](/bulk_transcribe_youtube_videos_from_playlist/blob/main/readme_image_2.webp) | 
 |:--:| 
-| *Bulk Transcripts Have Never Been This Easy!* |
+| *Wisper Signal Modulator* |
 
 ## Functional Overview
 
 ### Core Components
 
-- **YouTube Downloading**: Uses `pytube` to download the audio from YouTube videos or playlists.
+- **YouTube Downloading**: Uses `pytubefix` to download the audio from YouTube videos or playlists.
 - **Audio Transcription**: 
   - Local Inference: Leverages `faster_whisper.WhisperModel` for converting audio to text. This model is a variant of OpenAI's Whisper designed for speed and accuracy.
   - OpenAI API: Optionally uses the OpenAI API for transcription, though this uses an older and less accurate version of the Whisper model.
@@ -62,6 +62,18 @@ This Python-based tool is designed for transcribing YouTube videos and playlists
 - **Accessibility**: Assists in creating subtitles and closed captions for videos.
 - **Educational Purposes**: Helps in creating study materials from educational videos.
 - **Archival**: Transcribes and archives video content for long-term storage and retrieval.
+
+## YouTube caption export (WebVTT)
+
+When a public video or playlist already has captions, you can download them as **`.vtt`** files without running Whisper or downloading audio.
+
+- **Requirements**: `YOUTUBE_API_KEY` environment variable (YouTube Data API v3 key), or set `youtube_api_key` in `watcher_settings.json` (same file as the watcher panel). Enable the **YouTube Data API v3** for that key in Google Cloud. Optionally, set `youtube_api_key_secret_project` and `youtube_api_key_secret_id` and install `google-cloud-secretmanager` with `GOOGLE_APPLICATION_CREDENTIALS` so the key is read from Secret Manager instead of plain JSON.
+- **GUI**: `python youtube_transcript_panel.py` or `Open_Youtube_Caption_Export.cmd`. Enter a playlist URL/ID or a single video URL/ID, choose export folder and language, then run **Playlist** or **Single**. Progress shows as `N of M`; a dialog appears when finished.
+- **CLI**: `python scripts/yt_export_transcripts.py --playlist "PLAYLIST_URL_OR_ID"` or `--video "VIDEO_URL_OR_ID"`.
+- **Output**: Under `youtube_captions_exports/` (or `youtube_transcript_export_dir` in settings), each run creates a timestamped subfolder with one `.vtt` per video. Optional `.txt` if `youtube_transcript_also_save_txt` is true in settings.
+- **Quota**: Listing uses `playlistItems.list` and `videos.list` (batched). Caption text uses the `youtube-transcript-api` library (not the paid Captions download API).
+
+Core module: `youtube_transcript_export.py`. This path is **caption export only**; Whisper and the folder watcher handle local/non-YouTube audio.
 
 ## Setup Instructions
 
@@ -150,6 +162,15 @@ Execute the script with Python:
 ```bash
 python bulk_transcribe_youtube_videos_from_playlist.py
 ```
+
+You can override the video/playlist URL and mode without editing the file:
+
+```bash
+python bulk_transcribe_youtube_videos_from_playlist.py --single --url "https://www.youtube.com/watch?v=..."
+python bulk_transcribe_youtube_videos_from_playlist.py --playlist --url "https://www.youtube.com/playlist?list=..."
+```
+
+Use `python bulk_transcribe_youtube_videos_from_playlist.py --help` for all options.
 
 ### Notes:
 
@@ -279,28 +300,73 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-See my other open-source projects at [https://github.com/Dicklesworthstone](https://github.com/Dicklesworthstone), including:
+## Folder Watcher (On/Off + Live Status)
 
-- [Swiss Army Llama](https://github.com/Dicklesworthstone/swiss_army_llama)
-- [Automatic Log Collector and Analyzer](https://github.com/Dicklesworthstone/automatic_log_collector_and_analyzer)
-- [Fast Vector Similarity](https://github.com/Dicklesworthstone/fast_vector_similarity)
-- [Cloud Benchmarker](https://github.com/Dicklesworthstone/cloud_benchmarker)
-- [Prepare Project for LLM Prompt](https://github.com/Dicklesworthstone/prepareprojectforllmprompt)
-- [SQLAlchemy Data Model Visualizer](https://github.com/Dicklesworthstone/sqlalchemy_data_model_visualizer)
-- [Llama2 Aided Tesseract OCR](https://github.com/Dicklesworthstone/llama2_aided_tesseract)
+Use `watch_and_transcribe.py` to continuously process local videos dropped in a watch folder.
 
-| ![Take Your YouTube Transcript Addiction to the Next Level!](https://github.com/Dicklesworthstone/bulk_transcribe_youtube_videos_from_playlist/blob/main/readme_image_1.webp) | 
-|:--:| 
-| *Take Your YouTube Transcript Addiction to the Next Level!* |
+### Default folders
 
----
+- Watch: `watch_incoming`
+- Completed: `watch_incoming/Completed`
 
-Thanks for your interest in my open-source project! I hope you find it useful. You might also find my commercial web apps useful, and I would really appreciate it if you checked them out:
+### ON/OFF switch
 
-**[YoutubeTranscriptOptimizer.com](https://youtubetranscriptoptimizer.com)** makes it really quick and easy to paste in a YouTube video URL and have it automatically generate not just a really accurate direct transcription, but also a super polished and beautifully formatted written document that can be used independently of the video.
+Start watcher in background:
 
-The document basically sticks to the same material as discussed in the video, but it sounds much more like a real piece of writing and not just a transcript. It also lets you optionally generate quizzes based on the contents of the document, which can be either multiple choice or short-answer quizzes, and the multiple choice quizzes get turned into interactive HTML files that can be hosted and easily shared, where you can actually take the quiz and it will grade your answers and score the quiz for you.
+```powershell
+./start_watcher.ps1
+```
 
-**[FixMyDocuments.com](https://fixmydocuments.com/)** lets you submit any kind of document— PDFs (including scanned PDFs that require OCR), MS Word and Powerpoint files, images, audio files (mp3, m4a, etc.) —and turn them into highly optimized versions in nice markdown formatting, from which HTML and PDF versions are automatically generated. Once converted, you can also edit them directly in the site using the built-in markdown editor, where it saves a running revision history and regenerates the PDF/HTML versions.
+Stop watcher:
 
-In addition to just getting the optimized version of the document, you can also generate many other kinds of "derived documents" from the original: interactive multiple-choice quizzes that you can actually take and get graded on; slick looking presentation slides as PDF or HTML (using LaTeX and Reveal.js), an in-depth summary, a concept mind map (using Mermaid diagrams) and outline, custom lesson plans where you can select your target audience, a readability analysis and grade-level versions of your original document (good for simplifying concepts for students), Anki Flashcards that you can import directly into the Anki app or use on the site in a nice interface, and more.
+```powershell
+./stop_watcher.ps1
+```
+
+### Live dashboard/log
+
+- Status dashboard (JSON): `watch_incoming/watch_status.json`
+- Event log (text): `watch_incoming/watch_events.log`
+
+Status JSON includes fields like `running`, `status`, `current_file`, `queue_count`, `completed_count`, `failed_count`, `last_error`, and heartbeat timestamps.
+
+### Optional startup flags
+
+- Process files already in watch folder on startup:
+
+```powershell
+'./start_watcher.ps1 -ScanExisting'
+```
+
+- Custom watch folder: 
+'A:\bulk_transcribe_videos\bulk_transcribe_videos\'
+
+```powershell
+./start_watcher.ps1 -WatchDir "\bulk_transcribe_videos\IncomingVideos"
+```
+
+### Control Panel (desktop shortcut)
+
+The **Pipeline Watcher** UI (`\bulk_transcribe_videos\watcher_control_panel.py`) is a dark dashboard for status, queue, telemetry, logs, post-transcript handoff, and settings.
+
+**Launch (no console):** double-click `\bulk_transcribe_videos\Open_Watcher_Control_Panel.cmd` (uses `\bulk_transcribe_videos\venv\Scripts\pythonw.exe` when present).
+
+**Desktop shortcut (recommended):** from the repo root, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File '\bulk_transcribe_videos\Create_Watcher_Control_Panel_Shortcut.ps1'
+```
+
+This creates `\bulk_transcribe_videos\Transcription Watcher Control Panel.lnk` on your Desktop, targeting the `.cmd` above and using `\bulk_transcribe_videos\assets\watcher_desktop_icon.ico` when available.
+
+Only one panel instance binds to a local TCP port; a second launch exits with a warning.
+
+**Watcher scripts** read `\bulk_transcribe_videos\watcher_settings.json` at the repo root for `watch_dir`, `completed_dir`, `max_concurrent_jobs`, heartbeat/stall timeouts, `log_profile`, and handoff defaults. `start_watcher.ps1` passes `--completed` when `completed_dir` is set. **Stop** uses `taskkill /T` so child transcription workers exit with the watcher.
+
+The panel includes:
+
+- **Power control:** single Start/Stop toggle (plus optional “scan existing” on the Queue page)
+- Live phase/status, `active_jobs`, errors, and folder shortcuts
+- Gauges for queue/processed/completed/failed counts
+- Telemetry tail (`\bulk_transcribe_videos\watch_resource.jsonl`) and event log tail (`\bulk_transcribe_videos\watch_events.log`)
+- **Handoff:** NotebookLM (clipboard + staged text; manual upload in the browser) or LLM paths; optional **API summarization** when “Try LLM API first” is enabled (keys in settings or standard env vars)

@@ -9,3 +9,6 @@ openai
 pydub
 ruff
 tqdm
+watchdog
+google-api-python-client
+youtube-transcript-api

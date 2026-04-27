@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Observatory Technical - Queue Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#cae6ff",
+                        "error": "#ffb4ab",
+                        "on-tertiary-container": "#004618",
+                        "primary": "#8dcdff",
+                        "surface-container": "#1e2021",
+                        "inverse-surface": "#e2e2e3",
+                        "inverse-on-surface": "#2f3132",
+                        "primary-container": "#00b0ff",
+                        "outline": "#88929c",
+                        "surface-container-high": "#282a2b",
+                        "tertiary": "#3ce36a",
+                        "surface-container-highest": "#333536",
+                        "on-primary-fixed-variant": "#004b70",
+                        "on-background": "#e2e2e3",
+                        "tertiary-fixed-dim": "#3ce36a",
+                        "on-secondary-fixed-variant": "#304a55",
+                        "on-secondary": "#19343e",
+                        "surface-variant": "#333536",
+                        "on-secondary-container": "#a1bdca",
+                        "on-primary-container": "#004060",
+                        "surface-container-lowest": "#0c0e0f",
+                        "background": "#121415",
+                        "on-primary": "#00344f",
+                        "tertiary-container": "#00c04f",
+                        "surface-tint": "#8dcdff",
+                        "surface-container-low": "#1a1c1d",
+                        "on-tertiary-fixed-variant": "#00531e",
+                        "surface-bright": "#38393a",
+                        "on-surface-variant": "#bdc8d3",
+                        "primary-fixed-dim": "#8dcdff",
+                        "on-tertiary-fixed": "#002108",
+                        "secondary-fixed-dim": "#afcbd8",
+                        "on-error-container": "#ffdad6",
+                        "error-container": "#93000a",
+                        "on-error": "#690005",
+                        "on-surface": "#e2e2e3",
+                        "on-secondary-fixed": "#021f29",
+                        "inverse-primary": "#006493",
+                        "secondary-fixed": "#cbe7f5",
+                        "secondary-container": "#334d58",
+                        "on-tertiary": "#003912",
+                        "secondary": "#afcbd8",
+                        "surface": "#121415",
+                        "tertiary-fixed": "#69ff87",
+                        "surface-dim": "#121415",
+                        "outline-variant": "#3e4851",
+                        "on-primary-fixed": "#001e30"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .font-headline { font-family: 'Space Grotesk', sans-serif; }
+        body {
+            background-color: #121415;
+            color: #e2e2e3;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background">
+<!-- TopNavBar -->
+<header class="bg-slate-950/80 backdrop-blur-md text-sky-400 font-['Space_Grotesk'] tracking-tight flex justify-between items-center px-6 h-16 w-full fixed top-0 z-50 border-b border-slate-800">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-tighter text-sky-400">Observatory Technical</span>
+<nav class="hidden md:flex gap-6 items-center h-full">
+<a class="text-slate-400 font-medium hover:text-slate-200 transition-colors cursor-pointer active:scale-95 duration-150">Monitor</a>
+<a class="text-sky-400 font-bold border-b-2 border-sky-400 pb-1 cursor-pointer active:scale-95 duration-150">Queue</a>
+<a class="text-slate-400 font-medium hover:text-slate-200 transition-colors cursor-pointer active:scale-95 duration-150">Settings</a>
+<a class="text-slate-400 font-medium hover:text-slate-200 transition-colors cursor-pointer active:scale-95 duration-150">Logs</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-slate-800/50 hover:text-sky-300 transition-all rounded cursor-pointer active:scale-95 duration-150">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 hover:bg-slate-800/50 hover:text-sky-300 transition-all rounded cursor-pointer active:scale-95 duration-150">
+<span class="material-symbols-outlined">help</span>
+</button>
+<button class="p-2 hover:bg-slate-800/50 hover:text-sky-300 transition-all rounded cursor-pointer active:scale-95 duration-150">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="hidden md:flex bg-slate-950 flex-col h-screen pt-20 pb-6 fixed left-0 top-0 h-full w-64 border-r border-slate-800 z-40">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3 mb-2">
+<div class="w-10 h-10 bg-primary-container rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container">dns</span>
+</div>
+<div>
+<p class="font-headline font-bold text-sm tracking-tight">Core Engine</p>
+<p class="text-[10px] uppercase tracking-widest text-slate-500">V-Pipeline-01</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 flex flex-col">
+<div class="px-3 mb-2">
+<p class="px-3 text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] mb-2">Operations</p>
+<a class="flex items-center gap-3 px-3 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest cursor-pointer group">
+<span class="material-symbols-outlined text-lg">monitoring</span>
+<span>Monitor</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 text-sky-400 font-bold border-r-4 border-sky-400 bg-sky-400/5 font-['Space_Grotesk'] text-sm uppercase tracking-widest cursor-pointer">
+<span class="material-symbols-outlined text-lg">view_list</span>
+<span>Queue</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest cursor-pointer group">
+<span class="material-symbols-outlined text-lg">settings_suggest</span>
+<span>Settings</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest cursor-pointer group">
+<span class="material-symbols-outlined text-lg">terminal</span>
+<span>Logs</span>
+</a>
+</div>
+</nav>
+<div class="mt-auto px-3 border-t border-slate-900 pt-4">
+<a class="flex items-center gap-3 px-3 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest cursor-pointer group">
+<span class="material-symbols-outlined text-lg">description</span>
+<span>Documentation</span>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="md:ml-64 pt-24 px-8 pb-12">
+<!-- Header Section -->
+<div class="mb-8 flex justify-between items-end">
+<div>
+<h1 class="font-headline text-3xl font-bold text-on-background tracking-tight">Queue Management</h1>
+<p class="text-on-surface-variant font-body mt-1">Global processing pipeline and media ingestion control.</p>
+</div>
+<div class="flex gap-3">
+<button class="bg-surface-container-high text-on-surface border border-outline-variant px-4 py-2 flex items-center gap-2 hover:bg-surface-container-highest transition-all text-sm font-medium">
+<span class="material-symbols-outlined text-sm">pause_circle</span>
+                    PAUSE PIPELINE
+                </button>
+<button class="bg-primary-container text-on-primary-container px-4 py-2 flex items-center gap-2 hover:opacity-90 transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-sm">add</span>
+                    NEW TASK
+                </button>
+</div>
+</div>
+<!-- Ingest New Media Drop Zone -->
+<section class="mb-10">
+<div class="bg-surface-container-low border-2 border-dashed border-slate-800 rounded-lg p-12 flex flex-col items-center justify-center text-center group hover:border-sky-400/50 transition-all">
+<div class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-3xl text-sky-400" style="font-variation-settings: 'FILL' 1;">upload_file</span>
+</div>
+<h3 class="font-headline text-xl font-semibold mb-2">Ingest New Media</h3>
+<p class="text-on-surface-variant max-w-md mx-auto mb-6">Drag and drop raw video, audio, or image sequences here to initialize the pipeline. Support for R3D, ARRIRAW, EXR, and MOV.</p>
+<div class="flex gap-4">
+<button class="bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-400/20 px-6 py-2.5 font-medium transition-all">
+                        BROWSE FILES
+                    </button>
+<button class="bg-transparent hover:bg-slate-800 text-slate-400 px-6 py-2.5 font-medium transition-all">
+                        IMPORT FROM NAS
+                    </button>
+</div>
+</div>
+</section>
+<!-- Stats Grid (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
+<div class="bg-surface-container-low border border-slate-800 p-5">
+<p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Active Tasks</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-headline font-bold text-sky-400">12</span>
+<span class="text-xs text-tertiary">↑ 2</span>
+</div>
+</div>
+<div class="bg-surface-container-low border border-slate-800 p-5">
+<p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Queue Depth</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-headline font-bold">4.2 GB</span>
+<span class="text-[10px] text-slate-500">PENDING</span>
+</div>
+</div>
+<div class="bg-surface-container-low border border-slate-800 p-5">
+<p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Throughput</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-headline font-bold">850 MB/s</span>
+<span class="material-symbols-outlined text-tertiary text-lg">bolt</span>
+</div>
+</div>
+<div class="bg-surface-container-low border border-slate-800 p-5">
+<p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">System Health</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-headline font-bold">OPTIMAL</span>
+<div class="w-3 h-3 rounded-full bg-tertiary animate-pulse"></div>
+</div>
+</div>
+</div>
+<!-- Active Queue Table -->
+<section class="mb-10">
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline text-lg font-bold uppercase tracking-widest flex items-center gap-2">
+<span class="material-symbols-outlined text-sky-400">hourglass_top</span>
+                    Active Queue
+                </h2>
+<div class="flex gap-2">
+<input class="bg-surface-container-low border-slate-800 border focus:ring-sky-400 focus:border-sky-400 text-sm py-1.5 px-3 w-64" placeholder="Filter jobs..." type="text"/>
+</div>
+</div>
+<div class="bg-surface-container-low border border-slate-800 overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-slate-800 bg-slate-900/50">
+<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Job ID</th>
+<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Source File</th>
+<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Process</th>
+<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Progress</th>
+<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">ETA</th>
+<th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-800/50">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-900/30 transition-colors">
+<td class="px-4 py-4 font-mono text-xs text-sky-400">#QX-9412</td>
+<td class="px-4 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-6 bg-slate-800 flex-shrink-0 relative overflow-hidden">
+<div class="absolute inset-0 opacity-40 bg-cover bg-center" data-alt="Dark futuristic cinematic film frame with neon blue lighting accents" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBCPObI1IFOwDW_1cfj5-Eru6ThhaH1CT5Gbc3s2JK5puSwQdA4aZiQvaxUU7_IgBfPsT_vbNuBJ9tm5xm5ynWsJ-KZL2kIRO1nNs-K2xxSwpT30OhEFjU79jROcBrlJo5X9g3mt4RK0hRSVLQ5EiGnKoO-BzHj1mGcUAL8I8oPp3rTjyHax96C-BD1pZfEyk1EhPk7CPzLajpNFuSGmfyKpqcRk23Aq31pDKyDIIYXhtAqfDFwxtxl7L9gYEfXT-h7DsQ9Q3rXKm8')"></div>
+</div>
+<div>
+<p class="text-sm font-medium">scene_04_v012.exr</p>
+<p class="text-[10px] text-slate-500">4K | 12.4 GB | OpenEXR</p>
+</div>
+</div>
+</td>
+<td class="px-4 py-4">
+<span class="bg-sky-400/10 text-sky-400 text-[10px] font-bold px-2 py-0.5 border border-sky-400/20 uppercase tracking-tighter">Transcoding</span>
+</td>
+<td class="px-4 py-4">
+<div class="w-full">
+<div class="flex justify-between text-[10px] mb-1">
+<span>74%</span>
+<span class="text-slate-500">8.2 / 12.4 GB</span>
+</div>
+<div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+<div class="h-full bg-sky-400 w-3/4"></div>
+</div>
+</div>
+</td>
+<td class="px-4 py-4 text-sm font-mono text-slate-400">04m 12s</td>
+<td class="px-4 py-4">
+<div class="flex gap-2">
+<button class="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-sm">pause</span>
+</button>
+<button class="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-error transition-colors">
+<span class="material-symbols-outlined text-sm">cancel</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-900/30 transition-colors">
+<td class="px-4 py-4 font-mono text-xs text-sky-400">#QX-9413</td>
+<td class="px-4 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-6 bg-slate-800 flex-shrink-0 relative overflow-hidden">
+<div class="absolute inset-0 opacity-40 bg-cover bg-center" data-alt="Aerial cinematic shot of a misty mountain range at dusk with moody purple lighting" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA-iG7u456ZYGuzm0J1q5FAztXNI8TWASQg850nWN8r4Jq7zkGm5TQDSDL2AXMrt6Wn7GIPKHKiOnsUWAWqNxUbGN3apckaxdPBlPbDqVB2bj-AnZrSUeoLELXmHIq_AtD_pqJSwKVFZRHGvEmlaKt6FxtFNOrvt71tCIpP4Naz0Oqi0qhuTWFe63AjgAdqWbC3M1MTISoM7_Dqn2RcLPdRTl7YKvpVOB-PQo-PMx_MS7sfLYEGxhYM8ZUOGmlpu-Sz2NZwJcd-5r4')"></div>
+</div>
+<div>
+<p class="text-sm font-medium">exterior_drone_08.mov</p>
+<p class="text-[10px] text-slate-500">8K | 45.1 GB | ProRes 4444</p>
+</div>
+</div>
+</td>
+<td class="px-4 py-4">
+<span class="bg-tertiary/10 text-tertiary text-[10px] font-bold px-2 py-0.5 border border-tertiary/20 uppercase tracking-tighter">Indexing</span>
+</td>
+<td class="px-4 py-4">
+<div class="w-full">
+<div class="flex justify-between text-[10px] mb-1">
+<span>22%</span>
+<span class="text-slate-500">9.9 / 45.1 GB</span>
+</div>
+<div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+<div class="h-full bg-tertiary w-[22%]"></div>
+</div>
+</div>
+</td>
+<td class="px-4 py-4 text-sm font-mono text-slate-400">22m 45s</td>
+<td class="px-4 py-4">
+<div class="flex gap-2">
+<button class="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-sm">pause</span>
+</button>
+<button class="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-error transition-colors">
+<span class="material-symbols-outlined text-sm">cancel</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-900/30 transition-colors opacity-60">
+<td class="px-4 py-4 font-mono text-xs text-slate-600">#QX-9414</td>
+<td class="px-4 py-4 text-slate-500">
+<div class="flex items-center gap-3">
+<div class="w-10 h-6 bg-slate-900 flex-shrink-0"></div>
+<div>
+<p class="text-sm font-medium">audio_stem_master.wav</p>
+<p class="text-[10px]">48kHz | 210 MB | PCM</p>
+</div>
+</div>
+</td>
+<td class="px-4 py-4">
+<span class="bg-slate-800 text-slate-500 text-[10px] font-bold px-2 py-0.5 uppercase tracking-tighter">Queued</span>
+</td>
+<td class="px-4 py-4">
+<div class="w-full">
+<div class="flex justify-between text-[10px] mb-1">
+<span>Waiting...</span>
+</div>
+<div class="w-full h-1.5 bg-slate-800 rounded-full"></div>
+</div>
+</td>
+<td class="px-4 py-4 text-sm font-mono text-slate-600">--:--</td>
+<td class="px-4 py-4">
+<button class="p-1.5 hover:bg-slate-800 text-slate-600 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-sm">priority_high</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Recently Completed -->
+<section>
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline text-lg font-bold uppercase tracking-widest flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-500">history</span>
+                    Recently Completed
+                </h2>
+<button class="text-sky-400 text-[10px] font-bold hover:underline tracking-widest uppercase">Clear History</button>
+</div>
+<div class="grid grid-cols-1 gap-3">
+<!-- Log Item 1 -->
+<div class="bg-slate-950 border border-slate-900 px-6 py-4 flex items-center justify-between group hover:border-slate-800 transition-all">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-tertiary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<div>
+<p class="text-sm font-medium">VFX_Comp_Shot_102_Final.mp4</p>
+<p class="text-[10px] text-slate-500 uppercase tracking-tight">H.264 High Profile | 1.4 GB | Completed 12m ago</p>
+</div>
+</div>
+<div class="flex items-center gap-8">
+<div class="text-right">
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Duration</p>
+<p class="font-mono text-xs">01h 14m 33s</p>
+</div>
+<div class="text-right hidden lg:block">
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Destination</p>
+<p class="text-xs">/Volumes/Render_02/Delivery/</p>
+</div>
+<button class="bg-slate-900 p-2 border border-slate-800 hover:text-sky-400 transition-colors">
+<span class="material-symbols-outlined text-lg">folder_open</span>
+</button>
+</div>
+</div>
+<!-- Log Item 2 -->
+<div class="bg-slate-950 border border-slate-900 px-6 py-4 flex items-center justify-between group hover:border-slate-800 transition-all">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-tertiary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<div>
+<p class="text-sm font-medium">Daily_Assembly_Wednesday.mov</p>
+<p class="text-[10px] text-slate-500 uppercase tracking-tight">ProRes LT | 8.9 GB | Completed 45m ago</p>
+</div>
+</div>
+<div class="flex items-center gap-8">
+<div class="text-right">
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Duration</p>
+<p class="font-mono text-xs">00h 18m 10s</p>
+</div>
+<div class="text-right hidden lg:block">
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Destination</p>
+<p class="text-xs">/Volumes/Cloud_Dailies/Review/</p>
+</div>
+<button class="bg-slate-900 p-2 border border-slate-800 hover:text-sky-400 transition-colors">
+<span class="material-symbols-outlined text-lg">folder_open</span>
+</button>
+</div>
+</div>
+<!-- Log Item 3 (Error State) -->
+<div class="bg-slate-950 border border-error/20 px-6 py-4 flex items-center justify-between group hover:border-error/40 transition-all">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">error</span>
+<div>
+<p class="text-sm font-medium text-error">Raw_Ingest_B_Cam_004.zip</p>
+<p class="text-[10px] text-error/70 uppercase tracking-tight font-bold">Error: Checksum Mismatch | CRC-32 Failed</p>
+</div>
+</div>
+<div class="flex items-center gap-8">
+<button class="bg-error/10 text-error border border-error/30 px-3 py-1.5 text-[10px] font-bold uppercase hover:bg-error/20 transition-all">
+                            RETRY JOB
+                        </button>
+<button class="bg-slate-900 p-2 border border-slate-800 hover:text-sky-400 transition-colors">
+<span class="material-symbols-outlined text-lg">description</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Contextual FAB (Hidden on Queue Detail, shown here for quick ingest) -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary-container text-on-primary-container rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 group">
+<span class="material-symbols-outlined text-3xl">add</span>
+<span class="absolute right-full mr-4 px-3 py-1.5 bg-slate-900 border border-slate-800 text-[10px] font-bold uppercase tracking-widest text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">Ingest Single</span>
+</button>
+</body>
+</html>

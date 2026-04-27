@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>System Monitor | Observatory Technical</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#cae6ff",
+                        "error": "#ffb4ab",
+                        "on-tertiary-container": "#004618",
+                        "primary": "#8dcdff",
+                        "surface-container": "#1e2021",
+                        "inverse-surface": "#e2e2e3",
+                        "inverse-on-surface": "#2f3132",
+                        "primary-container": "#00b0ff",
+                        "outline": "#88929c",
+                        "surface-container-high": "#282a2b",
+                        "tertiary": "#3ce36a",
+                        "surface-container-highest": "#333536",
+                        "on-primary-fixed-variant": "#004b70",
+                        "on-background": "#e2e2e3",
+                        "tertiary-fixed-dim": "#3ce36a",
+                        "on-secondary-fixed-variant": "#304a55",
+                        "on-secondary": "#19343e",
+                        "surface-variant": "#333536",
+                        "on-secondary-container": "#a1bdca",
+                        "on-primary-container": "#004060",
+                        "surface-container-lowest": "#0c0e0f",
+                        "background": "#121415",
+                        "on-primary": "#00344f",
+                        "tertiary-container": "#00c04f",
+                        "surface-tint": "#8dcdff",
+                        "surface-container-low": "#1a1c1d",
+                        "on-tertiary-fixed-variant": "#00531e",
+                        "surface-bright": "#38393a",
+                        "on-surface-variant": "#bdc8d3",
+                        "primary-fixed-dim": "#8dcdff",
+                        "on-tertiary-fixed": "#002108",
+                        "secondary-fixed-dim": "#afcbd8",
+                        "on-error-container": "#ffdad6",
+                        "error-container": "#93000a",
+                        "on-error": "#690005",
+                        "on-surface": "#e2e2e3",
+                        "on-secondary-fixed": "#021f29",
+                        "inverse-primary": "#006493",
+                        "secondary-fixed": "#cbe7f5",
+                        "secondary-container": "#334d58",
+                        "on-tertiary": "#003912",
+                        "secondary": "#afcbd8",
+                        "surface": "#121415",
+                        "tertiary-fixed": "#69ff87",
+                        "surface-dim": "#121415",
+                        "outline-variant": "#3e4851",
+                        "on-primary-fixed": "#001e30"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .brand-font { font-family: 'Space Grotesk', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-background text-on-background selection:bg-primary-container selection:text-on-primary-container overflow-hidden">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center px-6 h-16 w-full fixed top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 font-['Space_Grotesk'] tracking-tight">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-tighter text-sky-400">Observatory Technical</span>
+<div class="hidden md:flex gap-6 items-center h-full">
+<a class="text-sky-400 font-bold border-b-2 border-sky-400 pb-1 cursor-pointer active:scale-95 duration-150" href="#">Monitor</a>
+<a class="text-slate-400 font-medium hover:text-slate-200 transition-colors cursor-pointer active:scale-95 duration-150" href="#">Logs</a>
+<a class="text-slate-400 font-medium hover:text-slate-200 transition-colors cursor-pointer active:scale-95 duration-150" href="#">Analytics</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">search</span>
+<input class="bg-slate-900 border-none text-xs tracking-widest pl-10 pr-4 py-2 w-64 focus:ring-1 focus:ring-sky-400 rounded-sm" placeholder="QUERY PARAMETERS..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-slate-400 hover:bg-slate-800/50 hover:text-sky-300 transition-all rounded-sm cursor-pointer active:scale-95 duration-150">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-400 hover:bg-slate-800/50 hover:text-sky-300 transition-all rounded-sm cursor-pointer active:scale-95 duration-150">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<button class="p-2 text-slate-400 hover:bg-slate-800/50 hover:text-sky-300 transition-all rounded-sm cursor-pointer active:scale-95 duration-150">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-64 border-r border-slate-800 bg-slate-950 flex flex-col h-screen pt-20 pb-6 z-40 hidden md:flex">
+<div class="px-6 mb-8">
+<h3 class="text-slate-500 font-['Space_Grotesk'] text-[10px] uppercase tracking-[0.2em] mb-4">Core Engine</h3>
+<div class="flex items-center gap-3 p-3 bg-slate-900/50 rounded-sm border border-slate-800">
+<div class="w-8 h-8 rounded-sm bg-sky-400/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-sky-400 text-sm" style="font-variation-settings: 'FILL' 1;">terminal</span>
+</div>
+<div>
+<p class="text-[11px] font-bold text-sky-400 tracking-tight leading-none">V-Pipeline-01</p>
+<p class="text-[9px] text-slate-500 uppercase tracking-widest mt-1">System Administrator</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<!-- Active State: Monitor -->
+<a class="flex items-center gap-3 px-4 py-3 text-sky-400 font-bold border-r-4 border-sky-400 bg-sky-400/5 font-['Space_Grotesk'] text-sm uppercase tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="monitoring" style="font-variation-settings: 'FILL' 1;">monitoring</span>
+<span>Monitor</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="view_list">view_list</span>
+<span>Queue</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="settings_suggest">settings_suggest</span>
+<span>Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="terminal">terminal</span>
+<span>Logs</span>
+</a>
+</nav>
+<div class="mt-auto px-4">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="description">description</span>
+<span>Documentation</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-0 md:ml-64 pt-16 h-screen overflow-y-auto no-scrollbar bg-background">
+<div class="p-6 max-w-7xl mx-auto space-y-6">
+<!-- Dashboard Header & Live Status -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800 pb-6">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="inline-block w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+<span class="text-[10px] font-bold text-tertiary tracking-[0.3em] uppercase">Live Streaming</span>
+</div>
+<h1 class="text-4xl font-bold tracking-tighter text-on-surface">System Performance</h1>
+<p class="text-slate-500 text-sm mt-1">Real-time telemetry and resource distribution analytics.</p>
+</div>
+<div class="flex gap-2">
+<div class="bg-slate-900 border border-slate-800 p-3 flex flex-col items-end">
+<span class="text-[9px] uppercase tracking-widest text-slate-500">Uptime</span>
+<span class="text-sm font-bold text-sky-400">14d 08h 22m</span>
+</div>
+<div class="bg-slate-900 border border-slate-800 p-3 flex flex-col items-end">
+<span class="text-[9px] uppercase tracking-widest text-slate-500">Node Status</span>
+<span class="text-sm font-bold text-tertiary uppercase">Healthy</span>
+</div>
+</div>
+</div>
+<!-- Multi-column Grid (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<!-- CPU Overview Card -->
+<div class="md:col-span-8 bg-slate-950 border border-slate-800 p-6 rounded-sm relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-8xl" data-icon="memory">memory</span>
+</div>
+<div class="flex justify-between items-start mb-8">
+<div>
+<h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Processing Unit</h2>
+<p class="text-2xl font-bold text-on-surface tracking-tight mt-1">CPU Architecture-X1</p>
+</div>
+<div class="text-right">
+<p class="text-3xl font-bold text-sky-400 tracking-tighter">4.82 GHz</p>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Active Clock Speed</p>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+<div class="space-y-1">
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Load Average</p>
+<div class="flex items-baseline gap-2">
+<span class="text-2xl font-bold text-on-surface">64%</span>
+<span class="text-[10px] text-tertiary">+2.4%</span>
+</div>
+<div class="w-full bg-slate-900 h-1 mt-2">
+<div class="bg-sky-400 h-full w-[64%]"></div>
+</div>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">CPS Cycles</p>
+<div class="flex items-baseline gap-2">
+<span class="text-2xl font-bold text-on-surface">1.2M</span>
+<span class="text-[10px] text-slate-500">sec</span>
+</div>
+<div class="w-full bg-slate-900 h-1 mt-2">
+<div class="bg-slate-700 h-full w-[82%]"></div>
+</div>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Core Temp</p>
+<div class="flex items-baseline gap-2">
+<span class="text-2xl font-bold text-on-surface">52°C</span>
+<span class="text-[10px] text-slate-500">optimal</span>
+</div>
+<div class="w-full bg-slate-900 h-1 mt-2">
+<div class="bg-tertiary h-full w-[52%]"></div>
+</div>
+</div>
+</div>
+<!-- Visualization -->
+<div class="h-32 w-full flex items-end gap-1">
+<div class="flex-1 bg-sky-400/10 hover:bg-sky-400/30 transition-colors h-[40%]"></div>
+<div class="flex-1 bg-sky-400/10 hover:bg-sky-400/30 transition-colors h-[45%]"></div>
+<div class="flex-1 bg-sky-400/10 hover:bg-sky-400/30 transition-colors h-[60%]"></div>
+<div class="flex-1 bg-sky-400/10 hover:bg-sky-400/30 transition-colors h-[55%]"></div>
+<div class="flex-1 bg-sky-400/20 hover:bg-sky-400/30 transition-colors h-[70%]"></div>
+<div class="flex-1 bg-sky-400/20 hover:bg-sky-400/30 transition-colors h-[65%]"></div>
+<div class="flex-1 bg-sky-400/30 hover:bg-sky-400/30 transition-colors h-[80%]"></div>
+<div class="flex-1 bg-sky-400/40 hover:bg-sky-400/30 transition-colors h-[90%]"></div>
+<div class="flex-1 bg-sky-400/30 hover:bg-sky-400/30 transition-colors h-[75%]"></div>
+<div class="flex-1 bg-sky-400/20 hover:bg-sky-400/30 transition-colors h-[60%]"></div>
+<div class="flex-1 bg-sky-400/10 hover:bg-sky-400/30 transition-colors h-[50%]"></div>
+<div class="flex-1 bg-sky-400/10 hover:bg-sky-400/30 transition-colors h-[40%]"></div>
+<div class="flex-1 bg-sky-400/20 hover:bg-sky-400/30 transition-colors h-[55%]"></div>
+<div class="flex-1 bg-sky-400/30 hover:bg-sky-400/30 transition-colors h-[70%]"></div>
+<div class="flex-1 bg-sky-400/40 hover:bg-sky-400/30 transition-colors h-[85%]"></div>
+<div class="flex-1 bg-sky-400/50 hover:bg-sky-400/30 transition-colors h-[95%]"></div>
+</div>
+</div>
+<!-- Memory Usage Card -->
+<div class="md:col-span-4 bg-slate-950 border border-slate-800 p-6 rounded-sm flex flex-col justify-between">
+<div>
+<h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Memory Utilization</h2>
+<div class="flex justify-between items-end mb-2">
+<span class="text-4xl font-bold text-on-surface">24.5<span class="text-lg text-slate-500">GB</span></span>
+<span class="text-[10px] text-slate-500 uppercase tracking-widest">of 32GB total</span>
+</div>
+<div class="relative h-4 bg-slate-900 rounded-sm overflow-hidden mb-6">
+<div class="absolute inset-0 bg-primary-container/20 w-[76%]"></div>
+<div class="absolute inset-0 border border-slate-800 pointer-events-none"></div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center py-2 border-b border-slate-900">
+<span class="text-xs text-slate-400">Available RAM</span>
+<span class="text-xs font-bold text-on-surface">7.5 GB</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-slate-900">
+<span class="text-xs text-slate-400">Swap File</span>
+<span class="text-xs font-bold text-on-surface">2.1 GB</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-slate-900">
+<span class="text-xs text-slate-400">Cached</span>
+<span class="text-xs font-bold text-on-surface">4.4 GB</span>
+</div>
+<div class="flex justify-between items-center py-2">
+<span class="text-xs text-slate-400">Kernel Objects</span>
+<span class="text-xs font-bold text-on-surface">842 MB</span>
+</div>
+</div>
+<button class="w-full mt-6 py-3 border border-slate-800 hover:bg-slate-900 text-slate-400 hover:text-sky-400 transition-all text-[10px] uppercase tracking-widest font-bold">
+                        Flush Buffer Cache
+                    </button>
+</div>
+<!-- Disk I/O Card -->
+<div class="md:col-span-6 bg-slate-950 border border-slate-800 p-6 rounded-sm">
+<div class="flex justify-between items-center mb-8">
+<h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Disk I/O Throughput</h2>
+<span class="text-[10px] px-2 py-0.5 bg-slate-900 text-slate-400 uppercase font-bold tracking-tighter border border-slate-800">NVMe Gen4 x4</span>
+</div>
+<div class="grid grid-cols-2 gap-8">
+<div class="relative group">
+<p class="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Read Speed</p>
+<p class="text-3xl font-bold text-on-surface group-hover:text-sky-400 transition-colors">7.42 <span class="text-xs text-slate-500">GB/s</span></p>
+<div class="mt-4 h-16 w-full flex gap-0.5 items-end">
+<div class="w-1 bg-slate-800 h-[20%]"></div>
+<div class="w-1 bg-slate-800 h-[30%]"></div>
+<div class="w-1 bg-slate-800 h-[25%]"></div>
+<div class="w-1 bg-sky-400 h-[80%]"></div>
+<div class="w-1 bg-sky-400 h-[70%]"></div>
+<div class="w-1 bg-sky-400 h-[90%]"></div>
+<div class="w-1 bg-slate-800 h-[40%]"></div>
+<div class="w-1 bg-slate-800 h-[30%]"></div>
+<div class="w-1 bg-slate-800 h-[20%]"></div>
+</div>
+</div>
+<div class="relative group">
+<p class="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Write Speed</p>
+<p class="text-3xl font-bold text-on-surface group-hover:text-tertiary transition-colors">5.18 <span class="text-xs text-slate-500">GB/s</span></p>
+<div class="mt-4 h-16 w-full flex gap-0.5 items-end">
+<div class="w-1 bg-slate-800 h-[40%]"></div>
+<div class="w-1 bg-slate-800 h-[30%]"></div>
+<div class="w-1 bg-tertiary h-[60%]"></div>
+<div class="w-1 bg-tertiary h-[50%]"></div>
+<div class="w-1 bg-tertiary h-[70%]"></div>
+<div class="w-1 bg-tertiary h-[65%]"></div>
+<div class="w-1 bg-slate-800 h-[40%]"></div>
+<div class="w-1 bg-slate-800 h-[20%]"></div>
+<div class="w-1 bg-slate-800 h-[10%]"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Process Activity Bento -->
+<div class="md:col-span-6 bg-slate-950 border border-slate-800 p-0 rounded-sm overflow-hidden flex flex-col">
+<div class="p-6 border-b border-slate-900 flex justify-between items-center">
+<h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Active High-Load Processes</h2>
+<span class="text-[10px] text-sky-400 font-mono">Top 5 sorted by load</span>
+</div>
+<div class="flex-1 overflow-y-auto max-h-[220px]">
+<table class="w-full text-left">
+<thead class="sticky top-0 bg-slate-950/90 backdrop-blur-sm border-b border-slate-900">
+<tr>
+<th class="px-6 py-3 text-[9px] uppercase tracking-widest text-slate-600 font-bold">Process Name</th>
+<th class="px-6 py-3 text-[9px] uppercase tracking-widest text-slate-600 font-bold">PID</th>
+<th class="px-6 py-3 text-[9px] uppercase tracking-widest text-slate-600 font-bold">CPU</th>
+<th class="px-6 py-3 text-[9px] uppercase tracking-widest text-slate-600 font-bold text-right">RAM</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-900/50">
+<tr class="hover:bg-sky-400/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-sky-400"></span>
+<span class="text-xs font-bold text-on-surface">rendering_engine.exe</span>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-mono text-slate-500">10242</td>
+<td class="px-6 py-4 text-xs font-bold text-on-surface">24.2%</td>
+<td class="px-6 py-4 text-xs font-bold text-on-surface text-right">4.2 GB</td>
+</tr>
+<tr class="hover:bg-sky-400/5 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-sky-400/40"></span>
+<span class="text-xs font-bold text-on-surface">db_service_prod</span>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-mono text-slate-500">9912</td>
+<td class="px-6 py-4 text-xs font-bold text-on-surface">12.1%</td>
+<td class="px-6 py-4 text-xs font-bold text-on-surface text-right">2.8 GB</td>
+</tr>
+<tr class="hover:bg-sky-400/5 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-sky-400/20"></span>
+<span class="text-xs font-bold text-on-surface">background_worker</span>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-mono text-slate-500">4431</td>
+<td class="px-6 py-4 text-xs font-bold text-on-surface">8.4%</td>
+<td class="px-6 py-4 text-xs font-bold text-on-surface text-right">1.1 GB</td>
+</tr>
+<tr class="hover:bg-sky-400/5 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-slate-700"></span>
+<span class="text-xs font-bold text-on-surface">telemetry_daemon</span>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-mono text-slate-500">2218</td>
+<td class="px-6 py-4 text-xs font-bold text-on-surface">4.2%</td>
+<td class="px-6 py-4 text-xs font-bold text-on-surface text-right">412 MB</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Visual Accent / Schematic -->
+<div class="md:col-span-12 h-64 bg-slate-950 border border-slate-800 rounded-sm relative overflow-hidden flex items-center justify-center">
+<img alt="System Schematic" class="absolute inset-0 w-full h-full object-cover opacity-10 grayscale" data-alt="abstract technical circuit board patterns with glowing blue lines and data points representing server room architecture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfR16jJ1hEgdezNm6BLysvpYkIvappxeKtlBL049aZQW4ZsvHIpsQrBGEsW1IxEfNOxbpGk0p4reHauwe8S9KF2pUp-qBN5zv21TTXXI9o4Nqd-G9FhRKxVXL9R6daUY7OVYOtl5Kwr3qymYAcIn1kLtcEbA3TUI7c_y_S-AOR8KoASc8LVzrKoVlDQ9WA0Mrx7iUrYY-ID01xzvAgU9UpbOJMAy2dHyE_gypamKbkHkwBkpR3xYEnY4rYdHDkpggnzNu3niFrRAc"/>
+<div class="relative z-10 text-center">
+<div class="inline-flex items-center gap-4 px-6 py-3 bg-slate-900/80 backdrop-blur-md border border-slate-700">
+<span class="material-symbols-outlined text-sky-400" data-icon="hub">hub</span>
+<div class="text-left">
+<p class="text-[10px] text-slate-500 uppercase tracking-[0.3em] font-bold">Network Topology</p>
+<p class="text-sm font-bold text-on-surface">Edge Node 07-Delta Connected</p>
+</div>
+<span class="text-tertiary text-xs font-mono ml-4">AES-256 SECURE</span>
+</div>
+</div>
+<!-- Decorative technical lines -->
+<div class="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-sky-400/30 to-transparent"></div>
+<div class="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-sky-400/30 to-transparent"></div>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual FAB (Only for main screens) -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary-container text-on-primary-container flex items-center justify-center rounded-sm shadow-2xl hover:scale-105 active:scale-95 transition-all z-50 group">
+<span class="material-symbols-outlined text-2xl" data-icon="add" style="font-variation-settings: 'FILL' 1;">add</span>
+<div class="absolute right-full mr-4 bg-slate-900 border border-slate-800 px-3 py-1 text-[10px] uppercase font-bold tracking-widest text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+            Launch New Monitor
+        </div>
+</button>
+</body>
+</html>

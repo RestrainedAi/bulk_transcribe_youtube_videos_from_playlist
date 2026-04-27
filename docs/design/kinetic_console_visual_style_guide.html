@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Visual Style Guide | KINETIC CONSOLE</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "tertiary-fixed": "#69ff87",
+        "tertiary-container": "#00c04f",
+        "primary-container": "#00b0ff",
+        "on-surface-variant": "#bdc8d3",
+        "on-secondary-container": "#a1bdca",
+        "surface-dim": "#121415",
+        secondary: "#afcbd8",
+        "surface-container": "#1e2021",
+        "on-surface": "#e2e2e3",
+        "on-error": "#690005",
+        "surface-tint": "#8dcdff",
+        "surface-container-highest": "#333536",
+        "surface-variant": "#333536",
+        "surface-bright": "#38393a",
+        "on-tertiary": "#003912",
+        "on-secondary-fixed-variant": "#304a55",
+        tertiary: "#3ce36a",
+        "on-tertiary-container": "#004618",
+        "inverse-surface": "#e2e2e3",
+        "on-primary-fixed": "#001e30",
+        primary: "#8dcdff",
+        "inverse-on-surface": "#2f3132",
+        "surface-container-high": "#282a2b",
+        "on-primary-container": "#004060",
+        "on-error-container": "#ffdad6",
+        "error-container": "#93000a",
+        "secondary-fixed": "#cbe7f5",
+        "on-primary-fixed-variant": "#004b70",
+        "on-primary": "#00344f",
+        "on-tertiary-fixed": "#002108",
+        "on-background": "#e2e2e3",
+        "outline-variant": "#3e4851",
+        "primary-fixed-dim": "#8dcdff",
+        "on-secondary": "#19343e",
+        "on-tertiary-fixed-variant": "#00531e",
+        "tertiary-fixed-dim": "#3ce36a",
+        "secondary-container": "#334d58",
+        "primary-fixed": "#cae6ff",
+        "on-secondary-fixed": "#021f29",
+        "inverse-primary": "#006493",
+        surface: "#121415",
+        "secondary-fixed-dim": "#afcbd8",
+        outline: "#88929c",
+        background: "#121415",
+        error: "#ffb4ab",
+        "surface-container-lowest": "#0c0e0f",
+        "surface-container-low": "#1a1c1d",
+      },
+      borderRadius: {
+        DEFAULT: "0.125rem",
+        lg: "0.25rem",
+        xl: "0.5rem",
+        full: "0.75rem",
+      },
+      fontFamily: {
+        headline: ["Space Grotesk", "sans-serif"],
+        body: ["Inter", "sans-serif"],
+        label: ["Inter", "sans-serif"],
+        mono: ["JetBrains Mono", "monospace"],
+        display: ["Space Grotesk", "sans-serif"],
+      },
+    },
+  },
+};
+</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .glass-panel {
+            -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(16px);
+            background: rgba(26, 28, 29, 0.7);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary-container selection:text-white">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 bg-[#121415] flex justify-between items-center h-16 px-6 w-full font-['Space_Grotesk'] tracking-tight">
+<div class="flex items-center gap-8">
+<div class="text-xl font-bold tracking-tighter text-[#8dcdff]">KINETIC CONSOLE</div>
+<nav class="hidden md:flex gap-6">
+<a class="text-[#8c9195] hover:text-white transition-colors" href="#">MONITOR</a>
+<a class="text-[#8c9195] hover:text-white transition-colors" href="#">ANALYTICS</a>
+<a class="text-[#8dcdff] border-b-2 border-[#8dcdff] pb-1" href="#">SYSTEM</a>
+<a class="text-[#8c9195] hover:text-white transition-colors" href="#">LOGS</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden lg:flex items-center bg-[#1a1c1d] px-3 py-1.5 rounded border border-[#42484b]/15">
+<span class="material-symbols-outlined text-outline text-sm mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-xs font-mono w-48 uppercase" placeholder="SEARCH SYSTEM..." type="text" aria-label="Search system"/>
+</div>
+<button class="p-2 text-outline hover:bg-[#282a2b] transition-all duration-150 rounded">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-outline hover:bg-[#282a2b] transition-all duration-150 rounded">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-primary/20">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="portrait of a focused professional male software engineer in a dark tech environment with blue ambient lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBI_rA2mj8eWNhUmqJeaS_NFp7ELuUJzn1DbS_ARWFxk77ZXsr5LjRpqHXWhsrXXBKQf0lxvDEseFsiblVmcxf2ZjT81hvBfURze171NtL4aPk1T3UqbmznFzE2uKkz57N5yLkZ2TW2BWxu2SlWU76KCtHGTC60-Y6AXUEX3gj-u4PtTXlS-HAI6Q8hPT70r8Q-ZJINwKDTH6-AvZxTDDDIymTiQ1jZ6u_4K5g_2oiiQNCHs_Q_fQ-xiZPpj5toHji6EGp3xSiDLtY"/>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-16 px-6 max-w-7xl mx-auto md:ml-16 lg:ml-64">
+<!-- Header Hero -->
+<section class="mb-16 border-l-4 border-primary pl-6 py-2">
+<h1 class="font-headline text-5xl font-bold tracking-tighter text-on-background mb-2">OBSERVATORY TECHNICAL</h1>
+<p class="font-mono text-primary uppercase tracking-[0.2em] text-sm">Visual Style Guide / Version 2.0.4-Alpha</p>
+</section>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<!-- 1. Color Palette Section -->
+<div class="md:col-span-8 bg-surface-container-low p-8 rounded-lg">
+<div class="flex items-center justify-between mb-8">
+<h2 class="font-headline text-2xl font-bold uppercase tracking-tight">01. Color Palette</h2>
+<span class="font-mono text-[10px] text-outline px-2 py-1 bg-surface-container-highest rounded">HEX_VALUES_LATEST</span>
+</div>
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Primary Blue -->
+<div class="space-y-3">
+<div class="h-24 bg-primary rounded-lg shadow-lg flex items-end p-3">
+<span class="text-on-primary font-mono text-[10px] font-bold">#8DCDFF</span>
+</div>
+<div>
+<p class="text-xs font-bold uppercase tracking-widest">Primary Blue</p>
+<p class="text-[10px] text-outline font-mono">CORE_BRAND_ACTION</p>
+</div>
+</div>
+<!-- Background Darks -->
+<div class="space-y-3">
+<div class="h-24 bg-surface rounded-lg border border-outline-variant/15 flex items-end p-3">
+<span class="text-outline font-mono text-[10px]">#121415</span>
+</div>
+<div>
+<p class="text-xs font-bold uppercase tracking-widest">Surface Base</p>
+<p class="text-[10px] text-outline font-mono">APP_BEDROCK</p>
+</div>
+</div>
+<div class="space-y-3">
+<div class="h-24 bg-surface-container-low rounded-lg border border-outline-variant/15 flex items-end p-3">
+<span class="text-outline font-mono text-[10px]">#1A1C1D</span>
+</div>
+<div>
+<p class="text-xs font-bold uppercase tracking-widest">Surface Low</p>
+<p class="text-[10px] text-outline font-mono">UTILITY_RAILS</p>
+</div>
+</div>
+<!-- Status Colors -->
+<div class="space-y-3">
+<div class="grid grid-cols-1 gap-2 h-24">
+<div class="bg-tertiary rounded flex items-center px-2">
+<span class="text-on-tertiary font-mono text-[9px] font-bold">SUCCESS</span>
+</div>
+<div class="bg-error rounded flex items-center px-2">
+<span class="text-on-error font-mono text-[9px] font-bold">ERROR</span>
+</div>
+<div class="bg-secondary rounded flex items-center px-2">
+<span class="text-on-secondary font-mono text-[9px] font-bold">WARNING</span>
+</div>
+</div>
+<div>
+<p class="text-xs font-bold uppercase tracking-widest">System Status</p>
+<p class="text-[10px] text-outline font-mono">SEMANTIC_FEEDBACK</p>
+</div>
+</div>
+</div>
+</div>
+<!-- 2. Typography Section -->
+<div class="md:col-span-4 bg-surface-container p-8 rounded-lg border border-outline-variant/10">
+<div class="flex items-center justify-between mb-8">
+<h2 class="font-headline text-2xl font-bold uppercase tracking-tight">02. Type</h2>
+</div>
+<div class="space-y-8">
+<div class="border-b border-outline-variant/10 pb-4">
+<h3 class="font-headline text-4xl font-bold leading-none mb-2">Space Grotesk</h3>
+<p class="text-xs text-outline uppercase tracking-widest mb-4">Headline / Weight 700</p>
+<p class="font-headline text-sm text-on-surface-variant leading-relaxed">
+                            Engineered for high-level system status and brand anchors.
+                        </p>
+</div>
+<div>
+<h3 class="font-mono text-xl mb-2 text-primary">JetBrains Mono</h3>
+<p class="text-xs text-outline uppercase tracking-widest mb-4">Technical / Data Display</p>
+<div class="bg-surface-container-lowest p-3 rounded font-mono text-[11px] text-tertiary leading-tight border-l-2 border-tertiary">
+                            09:41:04 LOG_ID: 99x_01<br/>
+                            STATUS: SYSTEM_READY<br/>
+                            UPLINK: 44.2 GB/s
+                        </div>
+</div>
+</div>
+</div>
+<!-- 3. UI Style Swatches -->
+<div class="md:col-span-12 bg-surface-container-low p-8 rounded-lg overflow-hidden relative">
+<div class="flex items-center justify-between mb-8">
+<h2 class="font-headline text-2xl font-bold uppercase tracking-tight">03. UI Components</h2>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
+<!-- Buttons -->
+<div class="space-y-6">
+<p class="font-mono text-[10px] text-outline tracking-widest uppercase border-b border-outline-variant/20 pb-2">Interaction states</p>
+<div class="flex flex-col gap-4">
+<button class="bg-primary text-on-primary py-3 px-6 font-bold text-xs uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all">
+<span>Primary Action</span>
+<span class="material-symbols-outlined text-sm">bolt</span>
+</button>
+<button class="bg-secondary-container text-secondary py-3 px-6 font-bold text-xs uppercase tracking-widest rounded-lg border border-outline-variant/30 hover:bg-secondary-container/80 transition-all">
+                                Secondary Control
+                            </button>
+<button class="text-outline py-3 px-6 font-bold text-xs uppercase tracking-widest rounded hover:text-white hover:bg-surface-container-highest transition-all">
+                                [ Ghost Function ]
+                            </button>
+</div>
+</div>
+<!-- Forms -->
+<div class="space-y-6">
+<p class="font-mono text-[10px] text-outline tracking-widest uppercase border-b border-outline-variant/20 pb-2">Input Elements</p>
+<div class="space-y-5">
+<div class="space-y-1">
+<label class="text-[10px] font-mono text-outline uppercase" for="system-input-field">System_Input_Field</label>
+<div class="bg-surface-container-highest p-3 border-b-2 border-outline focus-within:border-primary transition-all">
+<input id="system-input-field" class="bg-transparent border-none p-0 focus:ring-0 text-sm font-mono w-full text-on-surface" type="text" value="ACTIVE_TERMINAL_01"/>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<label for="power-thrust" class="text-[10px] font-mono text-outline uppercase">Power_Thrust</label>
+<input id="power-thrust" class="w-2/3 accent-primary h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer" type="range" aria-label="Power thrust control"/>
+</div>
+<div class="flex items-center gap-3">
+<input id="auto-redundancy" checked="" class="w-4 h-4 rounded border-outline-variant bg-surface-container-highest text-primary focus:ring-primary/20" type="checkbox" aria-label="Automatic redundancy"/>
+<label for="auto-redundancy" class="text-xs font-bold uppercase tracking-wide">Automatic Redundancy</label>
+</div>
+</div>
+</div>
+<!-- Badges & Status -->
+<div class="space-y-6">
+<p class="font-mono text-[10px] text-outline tracking-widest uppercase border-b border-outline-variant/20 pb-2">Status Metrics</p>
+<div class="flex flex-wrap gap-3">
+<div class="bg-on-tertiary-container/20 text-tertiary border border-tertiary/30 px-3 py-1 rounded-full flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">System Active</span>
+</div>
+<div class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Waiting</span>
+</div>
+<div class="bg-error-container text-on-error-container px-3 py-1 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]">report</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Fault Detected</span>
+</div>
+</div>
+<div class="mt-4 bg-surface-container-highest/30 p-4 rounded border border-outline-variant/10">
+<div class="flex justify-between items-center mb-2">
+<span class="text-[10px] font-mono text-outline">RESOURCE_LOAD</span>
+<span class="text-[10px] font-mono text-tertiary">78%</span>
+</div>
+<div class="w-full bg-surface-container-highest h-1 rounded-full overflow-hidden">
+<div class="bg-gradient-to-r from-tertiary to-primary h-full w-[78%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- 4. Design Principles Info Block -->
+<div class="md:col-span-12 lg:col-span-5 bg-primary p-8 rounded-lg text-on-primary">
+<h2 class="font-headline text-3xl font-bold uppercase tracking-tighter mb-4">Kinetic Console</h2>
+<p class="text-sm leading-relaxed mb-6 font-medium opacity-90">
+                    The Kinetic Console treats software as a high-performance physical instrument. We reject standard airy layouts for intentional density and technical authority.
+                </p>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-on-primary/10 p-3 rounded">
+<p class="font-mono text-[9px] font-bold uppercase mb-1">Density</p>
+<p class="text-[10px] leading-tight">Information is a feature, not a flaw. High-torque UI.</p>
+</div>
+<div class="bg-on-primary/10 p-3 rounded">
+<p class="font-mono text-[9px] font-bold uppercase mb-1">Precision</p>
+<p class="text-[10px] leading-tight">Tonal layering instead of solid 1px borders.</p>
+</div>
+</div>
+</div>
+<!-- Image/Visual Anchor -->
+<div class="md:col-span-12 lg:col-span-7 h-[300px] rounded-lg overflow-hidden relative group">
+<img alt="Technical Visualization" class="w-full h-full object-cover" data-alt="extreme macro shot of a complex circuit board with glowing blue led lights and dark metallic industrial components" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMEm2F5UmcpCmO-hKDYgqVwag80BVJIP09JIB_ddc1JsGKXLj2QfhPVTKLF-lWT9aIWphq8BcK5-G8LqxwFHXbNBKzK-e3d0bFfEz5flGxenZAGL573C1JaqkkKwIwi_kAf0qeHLmmiGYZuDXXqAFxXPNAd3xmNdpcpGQwkVj8llF7gYscMSyZH5y5pg_DRIx05J6e9EkoE8XdqBvP2pW9Jo0xxMKD2H7nOVivE7ZHMWpYTrDwj-b_71m7DEZjnUfuE5_lwKyCjss"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6 flex justify-between items-end">
+<div>
+<p class="font-mono text-[10px] text-primary uppercase tracking-[0.3em]">Aesthetic Anchor</p>
+<h3 class="font-headline text-2xl font-bold uppercase tracking-tighter">Technical Brutalism</h3>
+</div>
+<div class="bg-surface-container-high/80 backdrop-blur px-4 py-2 rounded border border-outline-variant/30 font-mono text-[10px]">
+                        REF_ID: //_HW_CORE
+                    </div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<footer class="mt-24 pt-8 border-t border-outline-variant/20 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-primary/10 flex items-center justify-center rounded">
+<span class="material-symbols-outlined text-primary">token</span>
+</div>
+<div>
+<p class="text-xs font-bold uppercase tracking-widest">Observatory Tech</p>
+<p class="text-[10px] text-outline font-mono">STABLE_RELEASE_V2.0.4</p>
+</div>
+</div>
+<div class="flex gap-8">
+<div class="text-right">
+<p class="text-[10px] text-outline font-mono uppercase">System Architect</p>
+<p class="text-xs font-bold">OPERATOR_01</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-outline font-mono uppercase">Region</p>
+<p class="text-xs font-bold">NODE_09_PACIFIC</p>
+</div>
+</div>
+<div class="flex gap-4">
+<button class="w-8 h-8 rounded border border-outline-variant/30 flex items-center justify-center hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-sm">terminal</span>
+</button>
+<button class="w-8 h-8 rounded border border-outline-variant/30 flex items-center justify-center hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-sm">download</span>
+</button>
+</div>
+</footer>
+</main>
+<!-- SideNavBar Simulation for Depth -->
+<aside class="fixed left-0 top-16 h-[calc(100vh-64px)] w-16 lg:w-64 bg-[#1a1c1d] border-r border-[#42484b]/15 hidden md:flex flex-col py-4 font-['JetBrains_Mono'] text-xs uppercase tracking-widest">
+<div class="px-6 mb-8 hidden lg:block">
+<p class="text-[10px] text-outline mb-1">OPERATOR_01</p>
+<p class="text-[9px] text-primary">LEVEL_A_ACCESS</p>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="text-[#8c9195] py-4 px-6 flex items-center gap-4 hover:bg-[#282a2b] hover:text-white group" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="hidden lg:inline">DASHBOARD</span>
+</a>
+<a class="text-[#8c9195] py-4 px-6 flex items-center gap-4 hover:bg-[#282a2b] hover:text-white" href="#">
+<span class="material-symbols-outlined">electric_bolt</span>
+<span class="hidden lg:inline">GRID_STATUS</span>
+</a>
+<a class="text-[#8c9195] py-4 px-6 flex items-center gap-4 hover:bg-[#282a2b] hover:text-white" href="#">
+<span class="material-symbols-outlined">hub</span>
+<span class="hidden lg:inline">NODE_MAP</span>
+</a>
+<a class="text-[#8c9195] py-4 px-6 flex items-center gap-4 hover:bg-[#282a2b] hover:text-white" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="hidden lg:inline">HISTORY</span>
+</a>
+<a class="text-[#8dcdff] bg-[#1e2021] border-l-4 border-[#8dcdff] py-4 px-6 flex items-center gap-4" href="#">
+<span class="material-symbols-outlined">assessment</span>
+<span class="hidden lg:inline">REPORTS</span>
+</a>
+</nav>
+<div class="mt-auto flex flex-col gap-2">
+<a class="text-[#8c9195] py-4 px-6 flex items-center gap-4 hover:bg-[#282a2b] hover:text-white" href="#">
+<span class="material-symbols-outlined">help_center</span>
+<span class="hidden lg:inline">SUPPORT</span>
+</a>
+<a class="text-[#8c9195] py-4 px-6 flex items-center gap-4 hover:bg-[#282a2b] hover:text-white" href="#">
+<span class="material-symbols-outlined">terminal</span>
+<span class="hidden lg:inline">TERMINAL</span>
+</a>
+</div>
+</aside>
+</body>
+</html>

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Transcript Pro Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#93000a",
+                        "on-primary-fixed": "#001e30",
+                        "secondary-container": "#334d58",
+                        "on-secondary-container": "#a1bdca",
+                        "tertiary-fixed-dim": "#3ce36a",
+                        "outline": "#88929c",
+                        "secondary-fixed": "#cbe7f5",
+                        "on-tertiary": "#003912",
+                        "outline-variant": "#3e4851",
+                        "on-primary-container": "#004060",
+                        "on-primary": "#00344f",
+                        "surface": "#121415",
+                        "on-tertiary-fixed": "#002108",
+                        "surface-variant": "#333536",
+                        "surface-container-highest": "#333536",
+                        "secondary": "#afcbd8",
+                        "on-secondary-fixed": "#021f29",
+                        "tertiary": "#3ce36a",
+                        "inverse-primary": "#006493",
+                        "on-error": "#690005",
+                        "tertiary-container": "#00c04f",
+                        "primary-fixed": "#cae6ff",
+                        "inverse-surface": "#e2e2e3",
+                        "surface-container-low": "#1a1c1d",
+                        "on-secondary-fixed-variant": "#304a55",
+                        "primary": "#8dcdff",
+                        "surface-dim": "#121415",
+                        "tertiary-fixed": "#69ff87",
+                        "surface-tint": "#8dcdff",
+                        "primary-fixed-dim": "#8dcdff",
+                        "on-secondary": "#19343e",
+                        "on-tertiary-container": "#004618",
+                        "error": "#ffb4ab",
+                        "on-error-container": "#ffdad6",
+                        "inverse-on-surface": "#2f3132",
+                        "background": "#121415",
+                        "on-background": "#e2e2e3",
+                        "on-surface": "#e2e2e3",
+                        "primary-container": "#00b0ff",
+                        "on-surface-variant": "#bdc8d3",
+                        "secondary-fixed-dim": "#afcbd8",
+                        "surface-container-lowest": "#0c0e0f",
+                        "surface-bright": "#38393a",
+                        "surface-container-high": "#282a2b",
+                        "on-tertiary-fixed-variant": "#00531e",
+                        "surface-container": "#1e2021",
+                        "on-primary-fixed-variant": "#004b70"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .mono-data { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-screen w-64 border-r border-slate-800 bg-slate-950 flex flex-col py-8 z-[60]">
+<div class="px-6 mb-10">
+<h1 class="text-lg font-black text-slate-100 tracking-tight uppercase font-headline">PIPELINE ENGINE</h1>
+<p class="text-[10px] text-cyan-400 font-mono tracking-widest mt-1">Active v4.0.2</p>
+</div>
+<nav class="flex-1 flex flex-col">
+<div class="mb-4">
+<a class="bg-slate-900 text-cyan-400 border-r-4 border-cyan-400 flex items-center gap-3 px-6 py-3 font-medium text-sm transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                    Dashboard
+                </a>
+<a class="text-slate-500 flex items-center gap-3 px-6 py-3 font-medium text-sm hover:bg-slate-800/40 hover:text-slate-200 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings_input_component">settings_input_component</span>
+                    Processing
+                </a>
+<a class="text-slate-500 flex items-center gap-3 px-6 py-3 font-medium text-sm hover:bg-slate-800/40 hover:text-slate-200 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+                    Transcripts
+                </a>
+<a class="text-slate-500 flex items-center gap-3 px-6 py-3 font-medium text-sm hover:bg-slate-800/40 hover:text-slate-200 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+                    Models
+                </a>
+<a class="text-slate-500 flex items-center gap-3 px-6 py-3 font-medium text-sm hover:bg-slate-800/40 hover:text-slate-200 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="insights">insights</span>
+                    Analytics
+                </a>
+</div>
+<div class="px-4 mt-4">
+<button class="w-full py-3 bg-cyan-400 text-slate-950 font-bold text-xs uppercase tracking-widest rounded-sm active:scale-95 transition-transform">
+                    New Transcription
+                </button>
+</div>
+</nav>
+<div class="mt-auto border-t border-slate-800/50 pt-4">
+<a class="text-slate-500 flex items-center gap-3 px-6 py-3 font-medium text-sm hover:bg-slate-800/40 hover:text-slate-200 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="security">security</span>
+                Security
+            </a>
+<a class="text-slate-500 flex items-center gap-3 px-6 py-3 font-medium text-sm hover:bg-slate-800/40 hover:text-slate-200 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+                Log Out
+            </a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen flex flex-col relative">
+<!-- TopNavBar Shell -->
+<header class="flex justify-between items-center h-16 w-full px-8 sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-tighter text-cyan-400 font-headline">TRANSCRIPT_PRO</span>
+<nav class="hidden md:flex gap-6">
+<a class="font-headline uppercase tracking-widest text-xs text-slate-400 hover:text-cyan-300 transition-all" href="#">Documentation</a>
+<a class="font-headline uppercase tracking-widest text-xs text-slate-400 hover:text-cyan-300 transition-all" href="#">API Status</a>
+<a class="font-headline uppercase tracking-widest text-xs text-slate-400 hover:text-cyan-300 transition-all" href="#">Support</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-400 hover:text-cyan-400 transition-colors active:scale-90">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-cyan-400 transition-colors active:scale-90">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-cyan-400/30">
+<img alt="Administrator Avatar" class="h-full w-full object-cover" data-alt="close-up portrait of a professional man in a tech office setting with soft blue lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3807_57bqMhP0sjtYFtVsna_qMrZ2UzEJK-bE6wJHb4NQaEFdoKWyQQw81AGYcztKbW5hL6MUE51i6F5VilhsYOSkZea2_FEdtY6esbJfibuQRd7U4vT_0gUJq2y0jAQzd5eKBJMO9OGVTblj5sKRDBaZQU6Fzk440Tuw8nTcn63DLPGlGI069B7U2brUjegL0hLDFcIlvQfRxowwLqI2TQ6HKDLeRIT8WsYUnhRDlxWj0YsJufYL0nr6_s-4gJ_MxPZ89T-_W4U"/>
+</div>
+</div>
+</header>
+<!-- Dashboard Body -->
+<div class="p-8 space-y-8">
+<!-- System Status Header -->
+<section class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container rounded-lg p-6 border border-outline-variant/20 shadow-xl">
+<div class="flex items-center gap-4">
+<div class="relative flex items-center justify-center w-12 h-12 bg-cyan-400/10 rounded-full">
+<span class="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-20 animate-ping"></span>
+<span class="material-symbols-outlined text-cyan-400" data-icon="bolt">bolt</span>
+</div>
+<div>
+<h2 class="font-headline text-2xl font-bold tracking-tight">System Node Status</h2>
+<div class="flex items-center gap-2 mt-1">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="text-xs font-mono text-tertiary uppercase tracking-widest">System: Running</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3 bg-slate-900 p-2 rounded-full border border-slate-800">
+<span class="px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Node Switch</span>
+<button class="flex items-center gap-2 bg-primary-container text-on-primary-fixed font-bold px-6 py-2 rounded-full text-xs uppercase tracking-tighter shadow-[0_0_15px_rgba(0,176,255,0.3)]">
+                        Active
+                    </button>
+</div>
+</section>
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+<!-- Main Current Task Card -->
+<section class="xl:col-span-2 bg-surface-container rounded-lg border border-outline-variant/20 overflow-hidden relative">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary-container"></div>
+<div class="p-8">
+<div class="flex justify-between items-start mb-10">
+<div>
+<span class="text-[10px] font-mono text-cyan-400 uppercase tracking-widest">Active Process</span>
+<h3 class="font-headline text-3xl font-bold mt-2">interview_raw.mp4</h3>
+<p class="text-slate-500 text-sm mt-1 font-mono">Job ID: TRX-9928-ALPHA</p>
+</div>
+<button class="p-2 bg-slate-900 rounded border border-slate-800 hover:border-cyan-400/50 transition-colors">
+<span class="material-symbols-outlined text-slate-400" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="flex flex-col md:flex-row items-center gap-12">
+<!-- Circular Progress -->
+<div class="relative w-48 h-48 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-slate-800" cx="96" cy="96" fill="transparent" r="88" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-cyan-400" cx="96" cy="96" fill="transparent" r="88" stroke="currentColor" stroke-dasharray="552.92" stroke-dashoffset="154.81" stroke-width="8"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="text-4xl font-mono font-bold text-slate-100">72%</span>
+<span class="text-[10px] font-mono text-cyan-400 uppercase tracking-widest mt-1">Transcribing</span>
+</div>
+</div>
+<div class="flex-1 w-full space-y-6">
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-slate-900/50 p-4 rounded border border-slate-800/50">
+<p class="text-[10px] text-slate-500 uppercase font-mono mb-1">Time Remaining</p>
+<p class="text-xl font-mono font-bold text-slate-200">00:04:12</p>
+</div>
+<div class="bg-slate-900/50 p-4 rounded border border-slate-800/50">
+<p class="text-[10px] text-slate-500 uppercase font-mono mb-1">File Size</p>
+<p class="text-xl font-mono font-bold text-slate-200">1.42 GB</p>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-mono text-slate-500 uppercase">
+<span>Frame Analysis</span>
+<span class="text-cyan-400">Stable</span>
+</div>
+<div class="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
+<div class="h-full bg-cyan-400 w-[72%] shadow-[0_0_8px_rgba(0,176,255,0.5)]"></div>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-2 bg-slate-900 border border-slate-700 text-slate-300 text-xs font-bold uppercase tracking-widest rounded-sm hover:bg-slate-800 transition-colors">Pause</button>
+<button class="px-6 py-2 bg-error-container/20 border border-error-container/50 text-error text-xs font-bold uppercase tracking-widest rounded-sm hover:bg-error-container/30 transition-colors">Terminate</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Telemetry Cards Grid -->
+<section class="grid grid-cols-1 gap-6">
+<!-- Memory Load -->
+<div class="bg-surface-container rounded-lg border border-outline-variant/20 p-6 flex flex-col justify-between">
+<div class="flex justify-between items-center mb-4">
+<span class="material-symbols-outlined text-cyan-400" data-icon="memory">memory</span>
+<span class="text-[10px] font-mono text-slate-500 uppercase">Memory Load</span>
+</div>
+<div class="flex items-end justify-between">
+<h4 class="text-3xl font-mono font-bold">12.4 <span class="text-sm font-normal text-slate-500">GB</span></h4>
+<div class="text-right">
+<p class="text-[10px] font-mono text-tertiary">Optimized</p>
+<p class="text-xl font-mono">82%</p>
+</div>
+</div>
+<div class="mt-4 flex gap-1 h-8 items-end">
+<div class="w-full bg-cyan-400/20 h-4"></div>
+<div class="w-full bg-cyan-400/40 h-6"></div>
+<div class="w-full bg-cyan-400/60 h-8"></div>
+<div class="w-full bg-cyan-400 h-5"></div>
+<div class="w-full bg-cyan-400/30 h-3"></div>
+<div class="w-full bg-cyan-400/80 h-7"></div>
+</div>
+</div>
+<!-- Processor Heat -->
+<div class="bg-surface-container rounded-lg border border-outline-variant/20 p-6 flex flex-col justify-between">
+<div class="flex justify-between items-center mb-4">
+<span class="material-symbols-outlined text-primary" data-icon="thermostat">thermostat</span>
+<span class="text-[10px] font-mono text-slate-500 uppercase">Processor Heat</span>
+</div>
+<div class="flex items-end justify-between">
+<h4 class="text-3xl font-mono font-bold">64.2 <span class="text-sm font-normal text-slate-500">°C</span></h4>
+<div class="text-right">
+<p class="text-[10px] font-mono text-secondary">Nominal</p>
+<p class="text-xl font-mono tracking-tighter">Liquid Cooled</p>
+</div>
+</div>
+<div class="mt-4 w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-cyan-400 to-tertiary w-[64%]"></div>
+</div>
+</div>
+<!-- Network Activity -->
+<div class="bg-surface-container rounded-lg border border-outline-variant/20 p-6 flex flex-col justify-between">
+<div class="flex justify-between items-center mb-4">
+<span class="material-symbols-outlined text-cyan-400" data-icon="hub">hub</span>
+<span class="text-[10px] font-mono text-slate-500 uppercase">Network Activity</span>
+</div>
+<div class="flex items-end justify-between">
+<h4 class="text-3xl font-mono font-bold">450 <span class="text-sm font-normal text-slate-500">Mb/s</span></h4>
+<div class="text-right">
+<p class="text-[10px] font-mono text-cyan-400">Peak Stream</p>
+<p class="text-xl font-mono">↑ 124 ↓ 326</p>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Recent Activity Section -->
+<section class="bg-surface-container rounded-lg border border-outline-variant/20 overflow-hidden">
+<div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/30">
+<h3 class="font-headline font-bold text-sm uppercase tracking-widest flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-cyan-400" data-icon="history">history</span>
+                        Pipeline History &amp; Logs
+                    </h3>
+<div class="flex gap-4">
+<button class="text-[10px] font-mono text-slate-500 hover:text-slate-300 uppercase">Export JSON</button>
+<button class="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 uppercase">View All</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left font-mono text-xs">
+<thead>
+<tr class="text-slate-500 border-b border-slate-800">
+<th class="px-6 py-4 font-medium uppercase">Timestamp</th>
+<th class="px-6 py-4 font-medium uppercase">Process Entity</th>
+<th class="px-6 py-4 font-medium uppercase">Status</th>
+<th class="px-6 py-4 font-medium uppercase">Accuracy</th>
+<th class="px-6 py-4 font-medium uppercase">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-800/50">
+<tr class="hover:bg-slate-800/20 transition-colors">
+<td class="px-6 py-4 text-slate-400">2023-10-24 14:02:11</td>
+<td class="px-6 py-4 text-slate-200">client_meeting_02.wav</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 text-tertiary">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                        SUCCESS
+                                    </span>
+</td>
+<td class="px-6 py-4 text-slate-200">98.4%</td>
+<td class="px-6 py-4 text-cyan-400 cursor-pointer">Open File</td>
+</tr>
+<tr class="hover:bg-slate-800/20 transition-colors">
+<td class="px-6 py-4 text-slate-400">2023-10-24 13:45:02</td>
+<td class="px-6 py-4 text-slate-200">pod_ep_04_master.mp3</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 text-tertiary">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                        SUCCESS
+                                    </span>
+</td>
+<td class="px-6 py-4 text-slate-200">99.1%</td>
+<td class="px-6 py-4 text-cyan-400 cursor-pointer">Open File</td>
+</tr>
+<tr class="hover:bg-slate-800/20 transition-colors">
+<td class="px-6 py-4 text-slate-400">2023-10-24 12:30:44</td>
+<td class="px-6 py-4 text-slate-200">noisy_field_record.ogg</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 text-error">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+                                        ERROR
+                                    </span>
+</td>
+<td class="px-6 py-4 text-slate-500">N/A</td>
+<td class="px-6 py-4 text-cyan-400 cursor-pointer">Retry</td>
+</tr>
+<tr class="hover:bg-slate-800/20 transition-colors">
+<td class="px-6 py-4 text-slate-400">2023-10-24 11:15:19</td>
+<td class="px-6 py-4 text-slate-200">legal_briefing_A.mp4</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 text-tertiary">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                        SUCCESS
+                                    </span>
+</td>
+<td class="px-6 py-4 text-slate-200">96.7%</td>
+<td class="px-6 py-4 text-cyan-400 cursor-pointer">Open File</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</div>
+<!-- System Background Texture Decor (Subtle) -->
+<div class="fixed inset-0 pointer-events-none opacity-[0.03] z-[-1]" style="background-image: radial-gradient(#00B0FF 1px, transparent 1px); background-size: 40px 40px;"></div>
+</main>
+</body>
+</html>

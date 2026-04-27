@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Observatory Technical - System Logs</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-fixed": "#cae6ff",
+                    "error": "#ffb4ab",
+                    "on-tertiary-container": "#004618",
+                    "primary": "#8dcdff",
+                    "surface-container": "#1e2021",
+                    "inverse-surface": "#e2e2e3",
+                    "inverse-on-surface": "#2f3132",
+                    "primary-container": "#00b0ff",
+                    "outline": "#88929c",
+                    "surface-container-high": "#282a2b",
+                    "tertiary": "#3ce36a",
+                    "surface-container-highest": "#333536",
+                    "on-primary-fixed-variant": "#004b70",
+                    "on-background": "#e2e2e3",
+                    "tertiary-fixed-dim": "#3ce36a",
+                    "on-secondary-fixed-variant": "#304a55",
+                    "on-secondary": "#19343e",
+                    "surface-variant": "#333536",
+                    "on-secondary-container": "#a1bdca",
+                    "on-primary-container": "#004060",
+                    "surface-container-lowest": "#0c0e0f",
+                    "background": "#121415",
+                    "on-primary": "#00344f",
+                    "tertiary-container": "#00c04f",
+                    "surface-tint": "#8dcdff",
+                    "surface-container-low": "#1a1c1d",
+                    "on-tertiary-fixed-variant": "#00531e",
+                    "surface-bright": "#38393a",
+                    "on-surface-variant": "#bdc8d3",
+                    "primary-fixed-dim": "#8dcdff",
+                    "on-tertiary-fixed": "#002108",
+                    "secondary-fixed-dim": "#afcbd8",
+                    "on-error-container": "#ffdad6",
+                    "error-container": "#93000a",
+                    "on-error": "#690005",
+                    "on-surface": "#e2e2e3",
+                    "on-secondary-fixed": "#021f29",
+                    "inverse-primary": "#006493",
+                    "secondary-fixed": "#cbe7f5",
+                    "secondary-container": "#334d58",
+                    "on-tertiary": "#003912",
+                    "secondary": "#afcbd8",
+                    "surface": "#121415",
+                    "tertiary-fixed": "#69ff87",
+                    "surface-dim": "#121415",
+                    "outline-variant": "#3e4851",
+                    "on-primary-fixed": "#001e30"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Space Grotesk"],
+                    "body": ["Inter"],
+                    "label": ["Inter"],
+                    "mono": ["JetBrains Mono"]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-headline { font-family: 'Space Grotesk', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .log-grid {
+            display: grid;
+            grid-template-columns: 180px 120px 1fr;
+            gap: 1rem;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0c0e0f; }
+        ::-webkit-scrollbar-thumb { background: #334d58; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00b0ff; }
+    </style>
+</head>
+<body class="bg-background text-on-background selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopNavBar -->
+<header class="bg-slate-950/80 backdrop-blur-md text-sky-400 font-['Space_Grotesk'] tracking-tight flex justify-between items-center px-6 h-16 w-full fixed top-0 z-50 border-b border-slate-800">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-tighter text-sky-400">Observatory Technical</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-slate-400 font-medium hover:text-slate-200 transition-colors cursor-pointer active:scale-95 duration-150" href="#">Monitor</a>
+<a class="text-slate-400 font-medium hover:text-slate-200 transition-colors cursor-pointer active:scale-95 duration-150" href="#">Queue</a>
+<a class="text-sky-400 font-bold border-b-2 border-sky-400 pb-1 cursor-pointer active:scale-95 duration-150" href="#">Logs</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-slate-800/50 hover:text-sky-300 transition-all rounded cursor-pointer active:scale-95 duration-150">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 hover:bg-slate-800/50 hover:text-sky-300 transition-all rounded cursor-pointer active:scale-95 duration-150">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<button class="flex items-center gap-2 p-1 pl-3 hover:bg-slate-800/50 transition-all rounded border border-slate-800 cursor-pointer active:scale-95 duration-150">
+<span class="text-xs font-mono text-slate-400">ADMIN_01</span>
+<span class="material-symbols-outlined text-sky-400" data-icon="account_circle" data-weight="fill" style="font-variation-settings: 'FILL' 1;">account_circle</span>
+</button>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="bg-slate-950 fixed left-0 top-0 h-full w-64 border-r border-slate-800 flex flex-col pt-20 pb-6 hidden lg:flex">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3 p-3 bg-surface-container rounded-lg border border-outline-variant/30">
+<div class="w-10 h-10 rounded bg-primary-container flex items-center justify-center text-on-primary-container">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+</div>
+<div>
+<h3 class="font-headline text-xs font-bold uppercase tracking-widest text-primary">Core Engine</h3>
+<p class="text-[10px] text-slate-500 font-mono">V-Pipeline-01</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest group" href="#">
+<span class="material-symbols-outlined group-hover:text-sky-200" data-icon="monitoring">monitoring</span>
+<span>Monitor</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest group" href="#">
+<span class="material-symbols-outlined group-hover:text-sky-200" data-icon="view_list">view_list</span>
+<span>Queue</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest group" href="#">
+<span class="material-symbols-outlined group-hover:text-sky-200" data-icon="settings_suggest">settings_suggest</span>
+<span>Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-sky-400 font-bold border-r-4 border-sky-400 bg-sky-400/5 font-['Space_Grotesk'] text-sm uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+<span>Logs</span>
+</a>
+</nav>
+<div class="px-4 mt-auto">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all font-['Space_Grotesk'] text-sm uppercase tracking-widest group" href="#">
+<span class="material-symbols-outlined group-hover:text-sky-200" data-icon="description">description</span>
+<span>Documentation</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="lg:ml-64 pt-16 min-h-screen flex flex-col bg-background">
+<!-- Action Bar / Sub-header -->
+<div class="sticky top-16 z-40 bg-background/95 backdrop-blur px-8 py-6 border-b border-outline-variant/20">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+<div>
+<h1 class="font-headline text-3xl font-bold tracking-tight text-on-background">System Logs</h1>
+<p class="text-outline text-sm mt-1">Real-time execution stream for V-Pipeline-01</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container border border-outline-variant hover:border-primary-container transition-colors rounded text-sm font-medium">
+<span class="material-symbols-outlined text-lg" data-icon="ios_share">ios_share</span>
+                        Export
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-error-container text-on-error-container hover:brightness-110 transition-all rounded text-sm font-medium">
+<span class="material-symbols-outlined text-lg" data-icon="delete_sweep">delete_sweep</span>
+                        Clear Logs
+                    </button>
+</div>
+</div>
+<!-- Filters -->
+<div class="mt-8 flex items-center justify-between border-b border-outline-variant/10">
+<div class="flex gap-8">
+<button class="pb-3 border-b-2 border-primary-container text-primary-container font-semibold text-sm">All Logs</button>
+<button class="pb-3 border-b-2 border-transparent text-outline hover:text-on-background transition-colors text-sm font-medium">Errors</button>
+<button class="pb-3 border-b-2 border-transparent text-outline hover:text-on-background transition-colors text-sm font-medium">Warnings</button>
+<button class="pb-3 border-b-2 border-transparent text-outline hover:text-on-background transition-colors text-sm font-medium">System Info</button>
+</div>
+<div class="flex items-center gap-4 pb-3">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg" data-icon="search">search</span>
+<input class="bg-surface-container-low border border-outline-variant rounded-full pl-10 pr-4 py-1.5 text-xs focus:ring-1 focus:ring-primary-container outline-none w-64 transition-all" placeholder="Filter message content..." type="text"/>
+</div>
+<div class="flex items-center gap-2 text-xs text-outline">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+                        Live Output
+                    </div>
+</div>
+</div>
+</div>
+<!-- Data Dense Log Viewer -->
+<div class="flex-1 overflow-x-auto">
+<div class="min-w-[1000px] font-mono text-[13px] leading-relaxed">
+<!-- Log Header -->
+<div class="log-grid px-8 py-3 border-b border-outline-variant/10 bg-surface-container-low/50 text-outline font-bold sticky top-0">
+<div>TIMESTAMP (UTC)</div>
+<div>CATEGORY</div>
+<div>LOG MESSAGE</div>
+</div>
+<!-- Log Stream -->
+<div class="divide-y divide-outline-variant/5">
+<!-- Entry: System -->
+<div class="log-grid px-8 py-2.5 hover:bg-primary/5 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:02:11.452</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-secondary-container text-on-secondary-container uppercase">System</span>
+</div>
+<div class="text-on-surface-variant group-hover:text-on-background transition-colors">Initializing kernel subsystem for node <span class="text-primary">PHOENIX-01</span>. All modules loaded successfully.</div>
+</div>
+<!-- Entry: Error -->
+<div class="log-grid px-8 py-2.5 bg-error/5 hover:bg-error/10 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:02:12.109</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-error-container text-on-error-container uppercase">Error</span>
+</div>
+<div class="text-error font-medium">CONNECTION_REFUSED: Failed to establish handshake with downstream worker <span class="underline">WRK-992-B</span>. Retrying in 500ms...</div>
+</div>
+<!-- Entry: Worker -->
+<div class="log-grid px-8 py-2.5 hover:bg-primary/5 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:02:12.871</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-tertiary-container text-on-tertiary-container uppercase">Worker</span>
+</div>
+<div class="text-on-surface-variant group-hover:text-on-background">Ingestion pipeline started for task <span class="text-sky-400">DATA_SYNC_PROD_02</span>. Process ID: 8841.</div>
+</div>
+<!-- Entry: User -->
+<div class="log-grid px-8 py-2.5 hover:bg-primary/5 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:03:01.004</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-outline-variant/30 text-outline uppercase">User</span>
+</div>
+<div class="text-on-surface-variant group-hover:text-on-background">Session established for user <span class="text-secondary font-semibold">sys_admin_root</span> from IP <span class="text-slate-400">192.168.1.105</span>.</div>
+</div>
+<!-- Entry: System -->
+<div class="log-grid px-8 py-2.5 hover:bg-primary/5 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:03:05.112</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-secondary-container text-on-secondary-container uppercase">System</span>
+</div>
+<div class="text-on-surface-variant group-hover:text-on-background">Memory optimization cycle complete. <span class="text-tertiary">412MB</span> reclaimed in 45ms.</div>
+</div>
+<!-- Entry: Worker -->
+<div class="log-grid px-8 py-2.5 hover:bg-primary/5 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:03:10.992</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-tertiary-container text-on-tertiary-container uppercase">Worker</span>
+</div>
+<div class="text-on-surface-variant group-hover:text-on-background">Task <span class="text-sky-400">ANALYTICS_GEN_09</span> transitioned from <span class="italic text-outline">PENDING</span> to <span class="text-tertiary">EXECUTING</span>.</div>
+</div>
+<!-- Entry: System -->
+<div class="log-grid px-8 py-2.5 hover:bg-primary/5 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:03:15.228</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-secondary-container text-on-secondary-container uppercase">System</span>
+</div>
+<div class="text-on-surface-variant group-hover:text-on-background">Global heart-beat signal broadcasted to all 12 registered nodes.</div>
+</div>
+<!-- Entry: Error -->
+<div class="log-grid px-8 py-2.5 bg-error/5 hover:bg-error/10 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:04:44.001</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-error-container text-on-error-container uppercase">Error</span>
+</div>
+<div class="text-error font-medium">IO_EXCEPTION: Disk space threshold exceeded on volume <span class="underline">/var/log/observatory</span>. Free space: 2%.</div>
+</div>
+<!-- Entry: Worker -->
+<div class="log-grid px-8 py-2.5 hover:bg-primary/5 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:05:01.332</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-tertiary-container text-on-tertiary-container uppercase">Worker</span>
+</div>
+<div class="text-on-surface-variant group-hover:text-on-background">Compression ratio for <span class="text-sky-400">LOG_ARCHIVE_Q3</span> calculated at 12.4:1. Optimization required.</div>
+</div>
+<!-- Entry: User -->
+<div class="log-grid px-8 py-2.5 hover:bg-primary/5 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:05:12.771</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-outline-variant/30 text-outline uppercase">User</span>
+</div>
+<div class="text-on-surface-variant group-hover:text-on-background">Password change requested for user <span class="text-secondary">dev_user_99</span>. Manual approval required.</div>
+</div>
+<!-- Entry: System -->
+<div class="log-grid px-8 py-2.5 hover:bg-primary/5 transition-colors group">
+<div class="text-slate-500">2023-11-24 14:06:00.000</div>
+<div>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-secondary-container text-on-secondary-container uppercase">System</span>
+</div>
+<div class="text-on-surface-variant group-hover:text-on-background">Auto-scaling group <span class="text-primary">CORE_CLUSTER</span> incrementing by 1 node (Target: 5, Actual: 4).</div>
+</div>
+</div>
+<!-- Log Footer / Status -->
+<div class="px-8 py-6 bg-surface-container-lowest flex items-center justify-between text-outline text-xs">
+<div class="flex gap-4">
+<span>Streaming 428 total logs</span>
+<span class="text-slate-700">|</span>
+<span>Uptime: 14d 02h 11m</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-1 hover:text-on-background disabled:opacity-30" disabled=""><span class="material-symbols-outlined text-lg" data-icon="chevron_left">chevron_left</span></button>
+<span class="font-bold text-on-background">Page 1 of 42</span>
+<button class="p-1 hover:text-on-background"><span class="material-symbols-outlined text-lg" data-icon="chevron_right">chevron_right</span></button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual Status Bar -->
+<footer class="lg:ml-64 bg-surface-container-low border-t border-outline-variant/20 h-10 flex items-center px-6 justify-between text-[10px] uppercase tracking-widest font-bold text-slate-500">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+                CORE_ENGINE_STABLE
+            </div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+                PIPELINE_ACTIVE
+            </div>
+</div>
+<div class="flex items-center gap-4">
+<span class="font-mono">VER: 2.11.0-STABLE</span>
+<span class="font-mono">REGION: US-EAST-1</span>
+</div>
+</footer>
+</body>
+</html>

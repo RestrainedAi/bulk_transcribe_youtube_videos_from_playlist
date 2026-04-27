@@ -119,6 +119,9 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# Local toolchain (embeddable Python used when winget/MSI is blocked)
+.tools/
+
 # Environments
 .env
 .venv
@@ -159,6 +162,9 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# Local watcher UI settings (may contain API keys)
+watcher_settings.json
+
 #ignore .bin model files and .sqlite files
 *.bin
 *.sqlite
@@ -169,7 +175,7 @@ cython_debug/
 folder_of_source_documents__original_format
 folder_of_source_documents__converted_to_plaintext
 *.zip
-*.md
 generated_transcript_metadata_tables
 generated_transcript_combined_texts
 downloaded_audio
+youtube_captions_exports
