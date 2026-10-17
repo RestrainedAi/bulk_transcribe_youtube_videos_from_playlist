@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import glob
 import json
 import os
 import re
@@ -534,7 +535,7 @@ def find_latest_progress_for_source(watch_dir: str, src_path: str) -> tuple[dict
     best_path: str | None = None
     best_data: dict | None = None
     best_mtime = -1.0
-    for path in Path(watch_dir).glob(f".watch_progress_{base}_*.json"):
+    for path in Path(watch_dir).glob(f".watch_progress_{glob.escape(base)}_*.json"):
         try:
             mtime = path.stat().st_mtime
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -1292,7 +1293,7 @@ def main() -> None:
         if resume_files:
             status.state["resumed_files"] = resume_files
             for path in resume_files:
-                for stale in Path(watch_dir).glob(f".watch_progress_{safe_output_stem(path)}_*.json"):
+                for stale in Path(watch_dir).glob(f".watch_progress_{glob.escape(safe_output_stem(path))}_*.json"):
                     try:
                         stale.unlink()
                     except OSError:

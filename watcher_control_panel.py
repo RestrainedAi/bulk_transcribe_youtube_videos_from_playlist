@@ -18,6 +18,8 @@ import psutil
 import threading
 
 import transcript_search
+import youtube_intake
+from app_version import APP_NAME, APP_VERSION
 import queue_control
 import transcript_review
 import support_tools
@@ -172,7 +174,7 @@ class ControlPanel(tk.Tk):
     def __init__(self, lock_sock: socket.socket) -> None:
         super().__init__()
         self.lock_sock = lock_sock
-        self.title("Pipeline Watcher")
+        self.title(f"{APP_NAME}  v{APP_VERSION}")
         self.geometry("1350x1350")
         self.minsize(1180, 900)
         self.configure(bg=BG_MAIN)
@@ -216,6 +218,7 @@ class ControlPanel(tk.Tk):
         self.handoff_destination_var = tk.StringVar(value="NotebookLM")
         self.handoff_format_var = tk.StringVar(value="Raw text")
         self._refresh_job: str | None = None
+        self.youtube = youtube_intake.YouTubeDownloader(log_path=ROOT / "logs" / "youtube_intake.log")
 
         self.set_hb = tk.DoubleVar(value=float(self._settings["heartbeat_seconds"]))
         self.set_stall = tk.DoubleVar(value=float(self._settings["stall_timeout_seconds"]))
@@ -401,7 +404,7 @@ class ControlPanel(tk.Tk):
         head.pack_propagate(False)
         tk.Label(
             head,
-            text="Observatory Technical",
+            text=APP_NAME,
             font=(FONT_HEADLINE, 16, "bold"),
             fg=ACCENT,
             bg=TOPBAR_BG,
@@ -430,14 +433,14 @@ class ControlPanel(tk.Tk):
 
         tk.Label(
             side,
-            text="CORE ENGINE",
+            text="VERSION",
             font=(FONT_HEADLINE, 9, "bold"),
             fg=FG_DIM,
             bg=SIDEBAR_BG,
         ).pack(anchor="w", padx=20, pady=(22, 4))
         tk.Label(
             side,
-            text="v-pipeline-01",
+            text=f"v{APP_VERSION}",
             font=(FONT_MONO, 10),
             fg=ACCENT,
             bg=SIDEBAR_BG,
@@ -662,6 +665,10 @@ class ControlPanel(tk.Tk):
         self._metric_tile(top_grid, "Processed", self.processed_var, color=ACCENT).grid(row=0, column=4, sticky="nsew", padx=4)
         self._metric_tile(top_grid, "Segment (s)", self.segment_var, color="#8dcdff").grid(row=0, column=5, sticky="nsew", padx=(4, 0))
 
+        youtube_intake.build_panel(
+            outer, self.youtube, theme=self._youtube_theme(), get_dirs=self._youtube_dirs, compact=True
+        ).pack(fill="x", pady=(0, 14))
+
         status = self._card(outer, pady=(0, 14))
         sf = tk.Frame(status, bg=BG_CARD)
         sf.pack(fill="both", expand=True, padx=0, pady=0)
@@ -730,6 +737,21 @@ class ControlPanel(tk.Tk):
         ttk.Button(ar, text="Reconcile finished job", command=self._reconcile_finished_job).pack(side="left", padx=(12, 0))
         ttk.Button(ar, text="Clear last error", command=self._clear_last_error).pack(side="right")
 
+    def _youtube_theme(self) -> dict:
+        return {
+            "card": BG_CARD, "fg": FG, "dim": FG_DIM, "accent": ACCENT, "red": ACCENT_RED,
+            "green": ACCENT_MINT, "field": FIELD_BG, "border": CARD_BORDER,
+            "headline_font": FONT_HEADLINE, "body_font": FONT_BODY, "mono_font": FONT_MONO,
+        }
+
+    def _youtube_dirs(self) -> tuple[Path, list[Path]]:
+        """Where YouTube audio goes (the watch folder) and where to look for videos we already have."""
+        d = resolved_output_dirs(ROOT, self._settings) if callable(resolved_output_dirs) else {}
+        known = [Path(v) for k, v in (d or {}).items() if v and k in (
+            "completed_videos", "completed_audio", "completed_transcripts")]
+        known.append(ROOT / "watch_incoming_staging")
+        return self._watch_dir(), known
+
     def _row_dark(self, parent: tk.Frame, row: int, label: str, var: tk.StringVar) -> None:
         col = row % 3
         grid_row = row // 3
@@ -784,6 +806,10 @@ class ControlPanel(tk.Tk):
         ttk.Button(ingest_btns, text="Start watcher (scan existing)", command=self._start_watcher).pack(
             side="left", padx=(14, 0)
         )
+
+        youtube_intake.build_panel(
+            wrap, self.youtube, theme=self._youtube_theme(), get_dirs=self._youtube_dirs
+        ).pack(fill="x", pady=(0, 14))
 
         stats = tk.Frame(wrap, bg=BG_MAIN)
         stats.pack(fill="x", pady=(0, 14))
@@ -2603,8 +2629,8 @@ def main() -> None:
         root = tk.Tk()
         root.withdraw()
         messagebox.showinfo(
-            "Control panel",
-            "Another control panel instance is already running.",
+            APP_NAME,
+            f"{APP_NAME} is already open. Check the taskbar.",
         )
         sys.exit(0)
     app = ControlPanel(sock)

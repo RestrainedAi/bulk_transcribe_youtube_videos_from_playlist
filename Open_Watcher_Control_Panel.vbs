@@ -9,6 +9,6 @@ If rc <> 0 Then
     If rc = 3 And fso.FileExists(repo & "\logs\selfcheck.log") Then
         detail = vbCrLf & vbCrLf & fso.OpenTextFile(repo & "\logs\selfcheck.log", 1).ReadAll()
     End If
-    MsgBox "The Watcher Control Panel failed to start (code " & rc & ")." & detail & vbCrLf & vbCrLf & _
-        "Full log: " & repo & "\logs\launcher.log", vbCritical, "Watcher Control Panel"
+    MsgBox "Transcription Workbench failed to start (code " & rc & ")." & detail & vbCrLf & vbCrLf & _
+        "Full log: " & repo & "\logs\launcher.log", vbCritical, "Transcription Workbench"
 End If
