@@ -19,6 +19,7 @@ import threading
 
 import transcript_search
 import youtube_intake
+import aeonimus_handoff
 from app_version import APP_NAME, APP_VERSION
 import queue_control
 import transcript_review
@@ -219,6 +220,16 @@ class ControlPanel(tk.Tk):
         self.handoff_format_var = tk.StringVar(value="Raw text")
         self._refresh_job: str | None = None
         self.youtube = youtube_intake.YouTubeDownloader(log_path=ROOT / "logs" / "youtube_intake.log")
+        self.easy_status_var = tk.StringVar(
+            value="One click: picks up the newest link list from the URL Lister, downloads the audio and starts transcribing."
+        )
+        self._easy_status_labels: list[tk.Label] = []
+        try:
+            _cfg = aeonimus_handoff.load_config()
+        except Exception:  # noqa: BLE001
+            _cfg = aeonimus_handoff.HandoffConfig(aeonimus_handoff.default_inbox(), aeonimus_handoff.default_library())
+        self.set_library_dir = tk.StringVar(value=str(_cfg.library))
+        self.handoff_inbox_var = tk.StringVar(value=str(_cfg.inbox))
 
         self.set_hb = tk.DoubleVar(value=float(self._settings["heartbeat_seconds"]))
         self.set_stall = tk.DoubleVar(value=float(self._settings["stall_timeout_seconds"]))
@@ -665,6 +676,7 @@ class ControlPanel(tk.Tk):
         self._metric_tile(top_grid, "Processed", self.processed_var, color=ACCENT).grid(row=0, column=4, sticky="nsew", padx=4)
         self._metric_tile(top_grid, "Segment (s)", self.segment_var, color="#8dcdff").grid(row=0, column=5, sticky="nsew", padx=(4, 0))
 
+        self._build_easy_import(outer, compact=True).pack(fill="x", pady=(0, 14))
         youtube_intake.build_panel(
             outer, self.youtube, theme=self._youtube_theme(), get_dirs=self._youtube_dirs, compact=True
         ).pack(fill="x", pady=(0, 14))
@@ -807,6 +819,7 @@ class ControlPanel(tk.Tk):
             side="left", padx=(14, 0)
         )
 
+        self._build_easy_import(wrap).pack(fill="x", pady=(0, 14))
         youtube_intake.build_panel(
             wrap, self.youtube, theme=self._youtube_theme(), get_dirs=self._youtube_dirs
         ).pack(fill="x", pady=(0, 14))
@@ -1578,6 +1591,27 @@ class ControlPanel(tk.Tk):
         tk.Entry(form, textvariable=self.set_completed_audio_dir, width=56, bg=FIELD_BG, fg=FG, insertbackground=FG, highlightthickness=1, highlightbackground=CARD_BORDER).grid(row=2, column=1, sticky="ew", pady=6)
         form.columnconfigure(1, weight=1)
 
+        lib = self._card(wrap)
+        lib.pack(fill="x", pady=(0, 12))
+        lbf = tk.Frame(lib, bg=BG_CARD)
+        lbf.pack(fill="both", expand=True, padx=18, pady=18)
+        self._headline(lbf, "Aeonimus Library", size=18, fg=FG).pack(anchor="w")
+        self._body_label(
+            lbf,
+            "Shared with the other Aeonimus apps. Finished transcripts are saved to its transcripts folder, and the "
+            "Import from URL Lister button moves new link lists here from the Downloads inbox. Changing it here changes it for every Aeonimus app.",
+            fg=FG_DIM, size=10, wraplength=980,
+        ).pack(anchor="w", pady=(6, 0))
+        lform = tk.Frame(lbf, bg=BG_CARD)
+        lform.pack(fill="x", pady=(12, 0))
+        tk.Label(lform, text="Library location", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=0, column=0, sticky="w", pady=6, padx=(0, 12))
+        tk.Entry(lform, textvariable=self.set_library_dir, width=56, bg=FIELD_BG, fg=FG, insertbackground=FG, highlightthickness=1, highlightbackground=CARD_BORDER).grid(row=0, column=1, sticky="ew", pady=6)
+        ttk.Button(lform, text="Browse...", command=self._browse_library_location).grid(row=0, column=2, padx=(8, 0))
+        ttk.Button(lform, text="Use this location", command=self._apply_library_location).grid(row=0, column=3, padx=(8, 0))
+        tk.Label(lform, text="Downloads inbox", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=1, column=0, sticky="w", pady=6, padx=(0, 12))
+        tk.Label(lform, textvariable=self.handoff_inbox_var, fg=ACCENT, bg=BG_CARD, anchor="w", font=(FONT_MONO, 9)).grid(row=1, column=1, sticky="w", pady=6)
+        lform.columnconfigure(1, weight=1)
+
         note = self._card(wrap)
         note.pack(fill="x")
         nf = tk.Frame(note, bg=BG_CARD)
@@ -1768,6 +1802,144 @@ class ControlPanel(tk.Tk):
                 else f"Recovered completed outputs and reconciled the stuck watcher state for:\n{dest}"
             ),
         )
+
+    # ------------------------------------------------ Aeonimus handoff (easy button)
+
+    def _build_easy_import(self, parent: tk.Misc, *, compact: bool = False) -> tk.Frame:
+        card = tk.Frame(parent, bg=BG_CARD, highlightthickness=1, highlightbackground=ACCENT)
+        body = tk.Frame(card, bg=BG_CARD)
+        body.pack(fill="x", padx=18, pady=10 if compact else 16)
+        row = tk.Frame(body, bg=BG_CARD)
+        row.pack(fill="x")
+        self._headline(row, "From the URL Lister", size=13 if compact else 16, fg=ACCENT).pack(side="left")
+        ttk.Button(row, text="Import from URL Lister", style="Accent.TButton", command=self._easy_import).pack(
+            side="left", padx=(14, 0), ipadx=10, ipady=3
+        )
+        ttk.Button(row, text="Open handoff folder", command=self._open_handoff_folder).pack(side="left", padx=(8, 0))
+        lbl = tk.Label(body, textvariable=self.easy_status_var, fg=FG_DIM, bg=BG_CARD, font=(FONT_BODY, 9),
+                       anchor="w", justify="left", wraplength=900)
+        lbl.pack(fill="x", pady=(6, 0))
+        self._easy_status_labels.append(lbl)
+        return card
+
+    def _easy_status(self, text: str, color: str = FG_DIM) -> None:
+        self.easy_status_var.set(text)
+        for lbl in self._easy_status_labels:
+            try:
+                lbl.configure(fg=color)
+            except tk.TclError:
+                pass
+
+    def _handoff_config(self) -> "aeonimus_handoff.HandoffConfig":
+        cfg = aeonimus_handoff.load_config()
+        aeonimus_handoff.ensure_folders(cfg)
+        return cfg
+
+    def _open_handoff_folder(self) -> None:
+        try:
+            cfg = self._handoff_config()
+        except OSError:
+            messagebox.showerror("Handoff folder", "The Aeonimus Library folder couldn't be created. Check the Library location in Settings.")
+            return
+        open_path(cfg.library)
+
+    def _watcher_is_running(self) -> bool:
+        data = self._read_status()
+        return bool(data.get("running", False)) and process_alive(int(data.get("pid") or 0))
+
+    def _easy_import(self) -> None:
+        """Easy button: move new link lists from the inbox, import the newest new one, start transcribing."""
+        try:
+            cfg = self._handoff_config()
+            ledger = aeonimus_handoff.ImportLedger()
+            pick = aeonimus_handoff.pick_link_list(cfg, ledger)
+        except OSError:
+            self._easy_status("The Aeonimus Library folder couldn't be opened. Check the Library location in Settings.", ACCENT_RED)
+            return
+        if pick.path is None:
+            self._easy_status(
+                "No link lists yet. In the URL Lister, export a CSV (with \"Save exports to the Aeonimus handoff folder\" on), then click again.",
+                ACCENT_RED,
+            )
+            return
+        if not pick.is_new:
+            again = messagebox.askyesno(
+                "Import from URL Lister",
+                f"There's no new link list since last time.\n\nImport the newest one again?\n{pick.path.name}",
+                parent=self,
+            )
+            if not again:
+                self._easy_status("Nothing new to import. Export a new CSV from the URL Lister, then click again.")
+                return
+        try:
+            result = youtube_intake.read_links_file(pick.path)
+        except (youtube_intake.LinkError, OSError) as exc:
+            msg = str(exc) if isinstance(exc, youtube_intake.LinkError) else "That file couldn't be opened."
+            self._easy_status(f"{pick.path.name}: {msg}", ACCENT_RED)
+            return
+        n = len(result.links)
+        if not n:
+            ledger.mark(pick.path)
+            self._easy_status(f"{pick.path.name} has no video or playlist links to transcribe.", ACCENT_RED)
+            return
+        dest, known = self._youtube_dirs()
+        added, repeats = self.youtube.add(result.links, dest, known)
+        ledger.mark(pick.path)
+        started = False
+        if not self._watcher_is_running():
+            try:
+                self._start_watcher()
+                started = True
+            except OSError:
+                self._easy_status(f"Imported {pick.path.name}, but the watcher couldn't start. Press Start watcher.", ACCENT_RED)
+                return
+        lead = f"Imported {pick.path.name}: {n} link{'s' if n != 1 else ''}."
+        detail = youtube_intake.describe_intake(result, added, repeats)
+        tail = " Started the watcher; transcripts appear as each download finishes." if started else " The watcher is running; transcripts appear as each download finishes."
+        self._easy_status(f"{lead} {detail}{tail}", ACCENT_GREEN)
+
+    def _apply_library_location(self) -> None:
+        new_raw = self.set_library_dir.get().strip().strip('"')
+        if not new_raw:
+            messagebox.showerror("Library location", "Choose a folder for the Aeonimus Library first.", parent=self)
+            return
+        new = Path(os.path.expandvars(new_raw))
+        try:
+            old = aeonimus_handoff.load_config().library
+        except Exception:  # noqa: BLE001
+            old = aeonimus_handoff.default_library()
+        same = os.path.normcase(str(old.resolve())) == os.path.normcase(str(new.resolve()))
+        try:
+            cfg = aeonimus_handoff.save_config(library=new)
+            aeonimus_handoff.ensure_folders(cfg)
+        except OSError:
+            messagebox.showerror("Library location", f"Couldn't use that folder:\n{new}\n\nPick a folder you can write to.", parent=self)
+            return
+        self.set_library_dir.set(str(cfg.library))
+        if same:
+            messagebox.showinfo("Library location", "Saved. The library location hasn't changed.", parent=self)
+            return
+        msg = f"Saved. Every Aeonimus app now uses:\n{cfg.library}"
+        if aeonimus_handoff.library_has_files(old) and messagebox.askyesno(
+            "Library location",
+            f"Move the existing library files to the new place?\n\nFrom: {old}\nTo: {cfg.library}\n\nNothing is overwritten; files with the same name get a number added.",
+            parent=self,
+        ):
+            moved, failed = aeonimus_handoff.move_library(old, cfg.library)
+            msg += f"\n\nMoved {moved} file{'s' if moved != 1 else ''}."
+            if failed:
+                msg += f" {failed} couldn't be moved (maybe open in another app) and stayed in the old folder."
+        messagebox.showinfo("Library location", msg, parent=self)
+
+    def _browse_library_location(self) -> None:
+        from tkinter import filedialog
+
+        start = self.set_library_dir.get().strip() or str(aeonimus_handoff.default_library())
+        chosen = filedialog.askdirectory(parent=self, title="Choose the Aeonimus Library folder",
+                                         initialdir=start if Path(start).exists() else str(Path.home()))
+        if chosen:
+            self.set_library_dir.set(str(Path(chosen)))
+            self._apply_library_location()
 
     def _toggle_watcher_power(self) -> None:
         self._settings = load_settings(ROOT)

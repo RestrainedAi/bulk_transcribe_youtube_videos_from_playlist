@@ -992,6 +992,13 @@ async def transcribe_and_move(
 
     print(f"[watch] Completed: {dest_video}")
     try:
+        import aeonimus_handoff
+        shared = aeonimus_handoff.publish_transcript(expected_txt, expected_json)
+        if shared:
+            print(f"[watch] Transcript added to the Aeonimus library: {shared[0].parent}")
+    except Exception as exc:  # the shared library is optional
+        print(f"[watch] Aeonimus library copy skipped: {exc}")
+    try:
         import transcript_search
         transcript_search.set_video_path(output_stem, dest_video)
     except Exception as exc:  # the search index is optional
