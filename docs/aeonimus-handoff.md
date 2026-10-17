@@ -21,6 +21,9 @@ Both have the same subfolders. Each app creates any that are missing:
 
 The 11-character YouTube video ID in square brackets, for example
 `Me at the zoo [jNQXAC9IVRw].txt`, is the join key between apps.
+Suno songs use `suno-<uuid>` in the same place, for example
+`My Song [suno-1f859585-68cb-4440-b38e-3871c7088658].txt`. Read the key as everything
+inside the last pair of square brackets.
 
 ## Shared settings file
 
