@@ -29,7 +29,9 @@ SUBFOLDERS = ("link-lists", "transcripts", "comments")
 LINK_LIST_SUFFIXES = (".csv", ".txt", ".tsv")
 CONFIG_ENV = "AEONIMUS_HANDOFF_CONFIG"  # tests can point this somewhere else
 APP_DATA_NAME = "TranscriptionWorkbench"
-VIDEO_ID_IN_NAME = re.compile(r"\[([A-Za-z0-9_-]{11})\]")
+# Join key in file names: an 11-char YouTube id, or suno-<uuid> for Suno songs.
+_KEY = r"(?:[A-Za-z0-9_-]{11}|suno-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"
+VIDEO_ID_IN_NAME = re.compile(r"\[(" + _KEY + r")\]")
 MAX_TRANSCRIPT_BYTES = 50 * 1024 * 1024  # small files only; no audio
 
 
@@ -37,12 +39,40 @@ def _home() -> Path:
     return Path(os.environ.get("USERPROFILE") or Path.home())
 
 
+# Windows known folders (Documents/Downloads can be redirected, e.g. to OneDrive).
+_FOLDERID_DOCUMENTS = "{FDD39AD0-238F-46AF-ADB4-6C85480369C7}"
+_FOLDERID_DOWNLOADS = "{374DE290-123F-4565-9164-39C4925E467B}"
+
+
+def known_folder(folder_id: str) -> Path | None:
+    """The real path of a Windows known folder, or None off Windows / on failure."""
+    if os.name != "nt" or os.environ.get(CONFIG_ENV):  # tests use USERPROFILE instead
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class GUID(ctypes.Structure):
+            _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD), ("Data3", wintypes.WORD), ("Data4", ctypes.c_ubyte * 8)]
+
+        guid = GUID()
+        ctypes.oledll.ole32.CLSIDFromString(ctypes.c_wchar_p(folder_id), ctypes.byref(guid))
+        out = ctypes.c_wchar_p()
+        ctypes.windll.shell32.SHGetKnownFolderPath(ctypes.byref(guid), 0, None, ctypes.byref(out))
+        try:
+            return Path(out.value) if out.value else None
+        finally:
+            ctypes.windll.ole32.CoTaskMemFree(out)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def default_inbox() -> Path:
-    return _home() / "Downloads" / "Aeonimus"
+    return (known_folder(_FOLDERID_DOWNLOADS) or (_home() / "Downloads")) / "Aeonimus"
 
 
 def default_library() -> Path:
-    return _home() / "Documents" / "Aeonimus Library"
+    return (known_folder(_FOLDERID_DOCUMENTS) or (_home() / "Documents")) / "Aeonimus Library"
 
 
 def config_path() -> Path:
@@ -111,7 +141,7 @@ def load_config(path: Path | None = None) -> HandoffConfig:
         library, changed = str(default_library()), True
     if changed or not path.exists():
         try:
-            _atomic_write_json(path, {**raw, "inbox": inbox, "library": library})
+            _atomic_write_json(path, {"version": 1, **raw, "inbox": inbox, "library": library})
         except OSError:
             pass  # read-only profile: still work with the defaults
     return HandoffConfig(Path(os.path.expandvars(inbox)), Path(os.path.expandvars(library)))
@@ -124,6 +154,7 @@ def save_config(*, inbox: str | Path | None = None, library: str | Path | None =
     current = load_config(path)
     raw["inbox"] = str(inbox if inbox is not None else current.inbox)
     raw["library"] = str(library if library is not None else current.library)
+    raw.setdefault("version", 1)
     _atomic_write_json(path, raw)
     return load_config(path)
 
@@ -253,7 +284,7 @@ def _atomic_copy(src: Path, dest: Path) -> None:
 
 def shared_transcript_name(src: Path) -> str:
     """'<title> [<id>]_2.txt' (a re-run) is shared as '<title> [<id>].txt'."""
-    stem = re.sub(r"(\[[A-Za-z0-9_-]{11}\])_\d+$", r"\1", src.stem)
+    stem = re.sub(r"(\[" + _KEY + r"\])_\d+$", r"\1", src.stem)
     return stem + src.suffix
 
 

@@ -1880,7 +1880,7 @@ class ControlPanel(tk.Tk):
         n = len(result.links)
         if not n:
             ledger.mark(pick.path)
-            self._easy_status(f"{pick.path.name} has no video or playlist links to transcribe.", ACCENT_RED)
+            self._easy_status(f"{pick.path.name} has no video, playlist or Suno song links to transcribe.", ACCENT_RED)
             return
         dest, known = self._youtube_dirs()
         added, repeats = self.youtube.add(result.links, dest, known)

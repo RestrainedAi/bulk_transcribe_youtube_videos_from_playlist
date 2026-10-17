@@ -48,6 +48,18 @@ def test_save_config_keeps_unknown_keys_and_is_shared(env, tmp_path):
     assert ah.load_config().library == tmp_path / "NewLib"
 
 
+def test_existing_config_is_read_not_overwritten(env, tmp_path):
+    path = ah.config_path()
+    original = '{\n    "inbox":  "X:\\\\Inbox",\n    "library":  "D:\\\\Aeonimus Library",\n    "version":  1\n}'
+    path.write_text("\ufeff" + original, encoding="utf-8")  # PowerShell-style BOM
+    before = path.read_bytes()
+    cfg = ah.load_config()
+    assert str(cfg.library).endswith("Aeonimus Library") and "Inbox" in str(cfg.inbox)
+    assert path.read_bytes() == before, "an existing config is never rewritten on read"
+    ah.save_config(library=tmp_path / "L2")
+    assert json.loads(path.read_text(encoding="utf-8-sig"))["version"] == 1
+
+
 def test_broken_config_falls_back_to_defaults(env):
     ah.config_path().write_text("{not json", encoding="utf-8")
     cfg = ah.load_config()

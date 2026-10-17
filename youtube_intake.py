@@ -1,4 +1,8 @@
-"""YouTube link intake for Transcription Workbench.
+"""YouTube and Suno link intake for Transcription Workbench.
+
+Suno song links (suno.com/song/<uuid>) are supported too: yt-dlp refuses
+Suno, so the public song page is read (no sign-in) for the audio it already
+plays to every visitor. Suno files are named "<title> [suno-<uuid>].<ext>".
 
 Takes one YouTube link (video, Shorts, live replay or playlist) or a CSV/TXT
 file of links, downloads the audio only with yt-dlp, and drops each file into
@@ -30,9 +34,12 @@ VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 PLAYLIST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{10,80}$")
 # Anything that looks like a YouTube address inside free text or a CSV cell.
 URL_IN_TEXT_RE = re.compile(
-    r"(?:https?://)?(?:[a-z0-9-]+\.)*(?:youtube\.com|youtu\.be|youtube-nocookie\.com)(?:/[^\s\"'<>,;|]*)?",
+    r"(?:https?://)?(?:[a-z0-9-]+\.)*(?:youtube\.com|youtu\.be|youtube-nocookie\.com|suno\.com|suno\.ai)(?:/[^\s\"'<>,;|]*)?",
     re.IGNORECASE,
 )
+SUNO_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
+SUNO_MAX_BYTES = 500 * 1024 * 1024
+SUNO_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) TranscriptionWorkbench"
 MAX_PLAYLIST_ITEMS = 1000
 MAX_FILE_BYTES = 50 * 1024 * 1024
 
@@ -43,7 +50,7 @@ class LinkError(ValueError):
 
 @dataclass(frozen=True)
 class YouTubeLink:
-    kind: str  # "video" or "playlist"
+    kind: str  # "video", "playlist" or "suno"
     id: str
 
     @property
@@ -51,7 +58,14 @@ class YouTubeLink:
         return f"{self.kind}:{self.id}"
 
     @property
+    def file_tag(self) -> str:
+        """What goes in [square brackets] in file names; the join key between apps."""
+        return f"suno-{self.id}" if self.kind == "suno" else self.id
+
+    @property
     def url(self) -> str:
+        if self.kind == "suno":
+            return f"https://suno.com/song/{self.id}"
         if self.kind == "playlist":
             return f"https://www.youtube.com/playlist?list={self.id}"
         return f"https://www.youtube.com/watch?v={self.id}"
@@ -62,6 +76,32 @@ class IntakeResult:
     links: list[YouTubeLink] = field(default_factory=list)
     duplicates: int = 0
     skipped: list[tuple[str, str]] = field(default_factory=list)  # (raw text, reason)
+
+
+def _is_suno_host(host: str) -> bool:
+    host = host.lower().split(":")[0]
+    return any(host == d or host.endswith("." + d) for d in ("suno.com", "suno.ai"))
+
+
+def _parse_suno(parsed, parts: list[str]) -> YouTubeLink:
+    """suno.com/song/<uuid>, app.suno.ai/song/<uuid>, cdn*.suno.ai/<uuid>.mp3 -> suno link."""
+    first = parts[0].lower() if parts else ""
+    cand = ""
+    if first == "song" and len(parts) >= 2:
+        cand = parts[1]
+    elif first in ("embed",) and len(parts) >= 2:
+        cand = parts[1]
+    elif len(parts) == 1 and re.match(r"^[0-9a-f-]{36}\.(mp3|mp4|m4a|wav)$", first):
+        cand = first.rsplit(".", 1)[0]
+    elif first == "s":
+        raise LinkError("That's a short Suno share link. Open it in your browser and paste the full suno.com/song/... link instead.")
+    elif first.startswith("@") or first in ("playlist", "create", "explore", "home", "me"):
+        raise LinkError("That Suno link isn't a single song. Paste a suno.com/song/... link.")
+    if not cand:
+        raise LinkError("I couldn't find a song in that Suno link. Paste a suno.com/song/... link.")
+    if not SUNO_UUID_RE.match(cand):
+        raise LinkError("That Suno song link has a broken song ID.")
+    return YouTubeLink("suno", cand.lower())
 
 
 def _is_youtube_host(host: str) -> bool:
@@ -99,9 +139,11 @@ def parse_youtube_url(text: str) -> YouTubeLink:
     except ValueError as exc:
         raise LinkError("That doesn't look like a web link.") from exc
     host = (parsed.hostname or "").lower()
-    if not host or not _is_youtube_host(host):
-        raise LinkError("That isn't a YouTube link.")
     parts = [p for p in parsed.path.split("/") if p]
+    if host and _is_suno_host(host):
+        return _parse_suno(parsed, parts)
+    if not host or not _is_youtube_host(host):
+        raise LinkError("That isn't a YouTube or Suno link.")
     query = parse_qs(parsed.query)
 
     if host == "youtu.be" or host.endswith(".youtu.be"):
@@ -180,7 +222,7 @@ def describe_intake(result: IntakeResult, added: int, already_queued: int) -> st
         bits.append(f"{repeats} repeat{'s were' if repeats != 1 else ' was'} left out.")
     if result.skipped:
         n = len(result.skipped)
-        bits.append(f"{n} link{'s' if n != 1 else ''} skipped (not a video or playlist).")
+        bits.append(f"{n} link{'s' if n != 1 else ''} skipped (not a video, playlist or Suno song).")
     return " ".join(bits)
 
 
@@ -199,6 +241,8 @@ def find_existing(video_id: str, folders: Iterable[Path]) -> Path | None:
 
 
 def friendly_download_error(exc: BaseException) -> str:
+    if isinstance(exc, SunoError):
+        return str(exc)
     text = str(exc)
     low = text.lower()
     rules = [
@@ -230,6 +274,118 @@ def friendly_download_error(exc: BaseException) -> str:
 
 class Cancelled(Exception):
     pass
+
+
+class SunoError(RuntimeError):
+    """A Suno song we can't get, with a plain-language reason."""
+
+
+def _safe_title(title: str, fallback: str) -> str:
+    t = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", title or "").strip(" .")
+    t = re.sub(r"\s+", " ", t)
+    raw = t.encode("utf-8")[:90]
+    t = raw.decode("utf-8", errors="ignore").strip(" .")
+    return t or fallback
+
+
+def suno_media_from_page(html: str, song_id: str) -> tuple[str, list[str]]:
+    """(title, audio URLs best first) from a public Suno song page. Pure; unit tested."""
+    text = html.replace('\\"', '"').replace("\\/", "/")
+    title = ""
+    m = re.search(r'<meta\s+property="og:title"\s+content="([^"]*)"', html)
+    if m:
+        import html as _html
+        title = _html.unescape(m.group(1))
+    anchor = text.find(f'"id":"{song_id}"')
+    window = text[max(0, anchor - 3000): anchor + 3000] if anchor >= 0 else ""
+    if re.search(r'"is_public"\s*:\s*false', window):
+        raise SunoError("This Suno song is private, so it can't be downloaded. Ask the owner to make it public.")
+    sid = re.escape(song_id)
+    urls: list[str] = []
+    # 1) the progressive audio the Suno player streams, 2) a CDN mp3, 3) the song's video (has the same audio)
+    for pat in (
+        rf'https://[a-z0-9.-]+\.cloudfront\.net/[^"\s]*{sid}\.m4a',
+        rf'https://cdn\d?\.suno\.ai/{sid}\.mp3',
+        rf'https://cdn\d?\.suno\.ai/{sid}\.mp4',
+    ):
+        for u in re.findall(pat, text, flags=re.IGNORECASE):
+            if u not in urls:
+                urls.append(u)
+    return title, urls
+
+
+def _http_get(url: str, timeout: float = 30.0):
+    import urllib.request
+
+    req = urllib.request.Request(url, headers={"User-Agent": SUNO_UA, "Referer": "https://suno.com/"})
+    return urllib.request.urlopen(req, timeout=timeout)  # noqa: S310 (https only, built above)
+
+
+def download_suno(
+    link: YouTubeLink,
+    dest_dir: Path,
+    on_progress: Callable[[float | None, str], None] | None = None,
+    cancel_event: threading.Event | None = None,
+) -> Path:
+    """Download a public Suno song's audio into dest_dir as '<title> [suno-<uuid>].<ext>'."""
+    import urllib.error
+
+    dest_dir = Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        with _http_get(link.url) as resp:
+            html = resp.read(5 * 1024 * 1024).decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        if exc.code in (404, 410):
+            raise SunoError("This Suno song wasn't found. It may have been deleted or the link is wrong.") from exc
+        if exc.code in (401, 403):
+            raise SunoError("Suno wouldn't show this song without a sign-in. It may be private.") from exc
+        raise SunoError(f"Suno didn't answer properly (error {exc.code}). Try again later.") from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise SunoError("Couldn't reach Suno. Check the internet connection.") from exc
+    if link.id not in html:
+        raise SunoError("This Suno song wasn't found. It may have been deleted or the link is wrong.")
+    title, urls = suno_media_from_page(html, link.id)
+    if not urls:
+        raise SunoError("This Suno song has no public audio to download. It may be private, deleted or still being made.")
+    name_title = _safe_title(title, "Suno song")
+    last_err: Exception | None = None
+    for url in urls:
+        ext = "." + url.rsplit(".", 1)[-1].lower()
+        final = dest_dir / f"{name_title} [{link.file_tag}]{ext}"
+        if final.exists():
+            return final
+        staging = dest_dir / (final.name + ".part")  # the watcher ignores .part files
+        try:
+            with _http_get(url, timeout=60) as resp, open(staging, "wb") as out:
+                total = int(resp.headers.get("Content-Length") or 0) or None
+                done = 0
+                while True:
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise Cancelled()
+                    chunk = resp.read(256 * 1024)
+                    if not chunk:
+                        break
+                    done += len(chunk)
+                    if done > SUNO_MAX_BYTES:
+                        raise SunoError("That Suno file is unexpectedly large, so it was skipped.")
+                    out.write(chunk)
+                    if on_progress:
+                        on_progress((done / total * 100.0) if total else None, title or link.id)
+            if done == 0:
+                raise SunoError("Suno sent an empty file.")
+            os.replace(staging, final)
+            return final
+        except Cancelled:
+            Path(staging).unlink(missing_ok=True)
+            raise
+        except (urllib.error.URLError, OSError, SunoError) as exc:
+            Path(staging).unlink(missing_ok=True)
+            last_err = exc
+            continue
+    if isinstance(last_err, SunoError):
+        raise last_err
+    raise SunoError("Suno wouldn't hand over the audio for this song. It may be private, or the owner turned off downloads.")
 
 
 def _ydl_base_opts() -> dict:
@@ -432,7 +588,7 @@ class YouTubeDownloader:
                         self._fail(f"Playlist {link.id}", "That playlist is empty or private.")
                     continue
 
-                existing = find_existing(link.id, (job.dest_dir, *job.known_dirs))
+                existing = find_existing(link.file_tag, (job.dest_dir, *job.known_dirs))
                 if existing is not None:
                     with self._lock:
                         self._state["already"] += 1
@@ -446,7 +602,8 @@ class YouTubeDownloader:
                     n = self._state["done"] + self._state["already"] + self._state["failed"] + 1
                     self._state.update(current=link.id, percent=0.0, message=f"Downloading {n} of {self._state['total']}")
                 try:
-                    path = download_audio(link, job.dest_dir, progress, self._cancel)
+                    fetch = download_suno if link.kind == "suno" else download_audio
+                    path = fetch(link, job.dest_dir, progress, self._cancel)
                 except Cancelled:
                     self._log(f"CANCELLED {link.id}")
                     continue
@@ -506,12 +663,12 @@ def build_panel(parent, downloader: YouTubeDownloader, *, theme: dict, get_dirs:
 
     row = tk.Frame(inner, bg=bg)
     row.pack(fill="x")
-    tk.Label(row, text="Add YouTube links", fg=accent, bg=bg, font=(head_font, 13 if compact else 16, "bold")).pack(side="left")
+    tk.Label(row, text="Add YouTube / Suno links", fg=accent, bg=bg, font=(head_font, 13 if compact else 16, "bold")).pack(side="left")
     url_var = tk.StringVar()
     entry = tk.Entry(row, textvariable=url_var, bg=field_bg, fg=fg, insertbackground=fg, relief="flat",
                      highlightthickness=1, highlightbackground=border, highlightcolor=accent, font=(body_font, 10))
     entry.pack(side="left", fill="x", expand=True, padx=(14, 8), ipady=5)
-    status_var = tk.StringVar(value="Paste a video, Shorts or playlist link, or load a CSV/TXT of links. Audio lands in the watch folder.")
+    status_var = tk.StringVar(value="Paste a YouTube video, Shorts or playlist link, or a Suno song link, or load a CSV/TXT of links. Audio lands in the watch folder.")
     status_lbl = tk.Label(inner, textvariable=status_var, fg=dim, bg=bg, font=(body_font, 9), anchor="w", justify="left", wraplength=900)
     progress_var = tk.StringVar(value="")
     bar = ttk.Progressbar(inner, orient="horizontal", mode="determinate", maximum=100)
@@ -525,7 +682,7 @@ def build_panel(parent, downloader: YouTubeDownloader, *, theme: dict, get_dirs:
             if single_error:
                 set_status(single_error, red)
             elif result.skipped:
-                set_status(f"No video or playlist links found. {len(result.skipped)} skipped, for example: {result.skipped[0][1]}", red)
+                set_status(f"No video, playlist or Suno song links found. {len(result.skipped)} skipped, for example: {result.skipped[0][1]}", red)
             else:
                 set_status("No YouTube links found.", red)
             return
