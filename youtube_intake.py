@@ -302,9 +302,9 @@ def suno_media_from_page(html: str, song_id: str) -> tuple[str, list[str]]:
         raise SunoError("This Suno song is private, so it can't be downloaded. Ask the owner to make it public.")
     sid = re.escape(song_id)
     urls: list[str] = []
-    # 1) the progressive audio the Suno player streams, 2) a CDN mp3, 3) the song's video (has the same audio)
+    # 1) a CDN mp3, 2) the song's public video (plain mp4 with the same audio).
+    # The player's progressive m4a stream is scrambled, so it is never used.
     for pat in (
-        rf'https://[a-z0-9.-]+\.cloudfront\.net/[^"\s]*{sid}\.m4a',
         rf'https://cdn\d?\.suno\.ai/{sid}\.mp3',
         rf'https://cdn\d?\.suno\.ai/{sid}\.mp4',
     ):
@@ -312,6 +312,21 @@ def suno_media_from_page(html: str, song_id: str) -> tuple[str, list[str]]:
             if u not in urls:
                 urls.append(u)
     return title, urls
+
+
+def looks_like_media(path: Path) -> bool:
+    """True for a real MP3/MP4/M4A/WAV header (guards against error pages or scrambled streams)."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(12)
+    except OSError:
+        return False
+    return (
+        head[4:8] == b"ftyp"
+        or head[:3] == b"ID3"
+        or (len(head) >= 2 and head[0] == 0xFF and (head[1] & 0xE0) == 0xE0)
+        or (head[:4] == b"RIFF" and head[8:12] == b"WAVE")
+    )
 
 
 def _http_get(url: str, timeout: float = 30.0):
@@ -374,6 +389,8 @@ def download_suno(
                         on_progress((done / total * 100.0) if total else None, title or link.id)
             if done == 0:
                 raise SunoError("Suno sent an empty file.")
+            if not looks_like_media(staging):
+                raise SunoError("Suno sent a file that isn't playable audio, so it was skipped.")
             os.replace(staging, final)
             return final
         except Cancelled:

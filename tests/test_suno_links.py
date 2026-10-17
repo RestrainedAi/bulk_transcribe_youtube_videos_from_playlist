@@ -67,13 +67,25 @@ PAGE = (
 )
 
 
-def test_page_parsing_prefers_streamed_audio_then_video():
+def test_page_parsing_uses_public_mp3_or_video_never_the_scrambled_stream():
     title, urls = yi.suno_media_from_page(PAGE, SID)
     assert title == "My & Song"
-    assert urls == [
-        f"https://d2lwuy8qc234o3.cloudfront.net/1/clip/{SID}.m4a",
-        f"https://cdn1.suno.ai/{SID}.mp4",
-    ]
+    assert urls == [f"https://cdn1.suno.ai/{SID}.mp4"]
+    page = PAGE.replace("https://studio-api.prod.suno.com/api/forbidden", f"https://cdn1.suno.ai/{SID}.mp3")
+    assert yi.suno_media_from_page(page, SID)[1] == [f"https://cdn1.suno.ai/{SID}.mp3", f"https://cdn1.suno.ai/{SID}.mp4"]
+
+
+def test_looks_like_media(tmp_path):
+    good = tmp_path / "a.mp4"
+    good.write_bytes(b"\x00\x00\x00\x20ftypisom" + b"\x00" * 20)
+    mp3 = tmp_path / "a.mp3"
+    mp3.write_bytes(b"ID3\x04" + b"\x00" * 20)
+    bad = tmp_path / "b.m4a"
+    bad.write_bytes(bytes.fromhex("7b7c979f8179301508b7b9e05e22975b"))
+    html = tmp_path / "c.mp3"
+    html.write_bytes(b"<html>forbidden</html>")
+    assert yi.looks_like_media(good) and yi.looks_like_media(mp3)
+    assert not yi.looks_like_media(bad) and not yi.looks_like_media(html)
 
 
 def test_private_song_is_a_plain_message():

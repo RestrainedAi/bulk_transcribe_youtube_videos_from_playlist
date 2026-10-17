@@ -1146,6 +1146,15 @@ class VideoHandler(FileSystemEventHandler):
             return
         self._schedule(event.src_path)
 
+    def on_moved(self, event):  # noqa: ANN001
+        # Downloads (YouTube/Suno intake, browsers) land as a .part file and are then
+        # renamed into place; without this a file that arrives while the watcher runs is missed.
+        if event.is_directory:
+            return
+        dest = os.path.abspath(getattr(event, "dest_path", "") or "")
+        if dest and is_under_dir(os.path.dirname(dest), self.watch_dir):
+            self._schedule(dest)
+
 
 def scan_existing(handler: VideoHandler, watch_dir: str, completed_dir: str) -> None:
     watch_dir = os.path.abspath(watch_dir)
