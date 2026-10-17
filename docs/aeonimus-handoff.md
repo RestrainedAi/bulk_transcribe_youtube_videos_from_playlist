@@ -1,74 +1,106 @@
 # Aeonimus handoff contract (v1)
 
 How the Aeonimus apps (YouTube URL Lister, Transcription Workbench, Comment
-Workbench) hand files to each other. Every app follows this exactly. Each app
-works on its own; the shared folders only make the apps work together.
+Workbench, and later Director OS) pass files to each other, so nobody has to
+copy files by hand. Each app works on its own. The shared folders only make
+them work together. This file is the same in every repo.
+
+Last checked against the code: 2026-10-17 (URL Lister 2.6.4, Transcription
+Workbench 1.2.0, Comment Workbench 1.1.0).
 
 ## Two places: inbox and library
 
-| Place | Default | What it is |
+| Place | Default for a new install | What it is |
 |---|---|---|
-| **Inbox** | `%USERPROFILE%\Downloads\Aeonimus` | Drop-off only. Chrome extensions can only save inside Downloads, so the URL Lister saves here. Nothing is kept here long term. |
-| **Library** | `%USERPROFILE%\Documents\Aeonimus Library` | The real shared library. Apps import from here and write their results here. |
+| **Inbox** | `Downloads\Aeonimus` | Drop-off only. Chrome extensions can only save inside Downloads, so the URL Lister saves here. Nothing stays here long term. |
+| **Library** | `Documents\Aeonimus Library` | The real shared library. Apps import from here and write their results here. |
 
-Both have the same subfolders. Each app creates any that are missing:
+The library can live anywhere (Thomas's is `D:\Aeonimus Library`). The
+Transcription Workbench finds the real Documents and Downloads folders even
+when Windows has moved them (for example into OneDrive).
+
+Both places have the same subfolders. Each app creates any that are missing.
 
 | Subfolder | Contents | Written by |
 |---|---|---|
-| `link-lists\` | URL Lister CSV exports, named `<channel>_<type>_<yyyy-mm-dd>.csv` (same columns as a normal URL Lister CSV export) | URL Lister (into the inbox) |
-| `transcripts\` | One finished transcript per video: `<title> [<videoId>].txt` and `.json` | Transcription Workbench (straight into the library) |
-| `comments\` | Comment Workbench exports | Comment Workbench |
+| `link-lists\` | URL Lister CSV exports: `<channel>_<type>_<yyyy-mm-dd>.csv`, or `youtube-url-lister_library_<date>.csv` for the whole library. The link is in the `canonicalUrl` column. Links can be `watch?v=`, `/shorts/`, `/post/` or `playlist?list=`. | URL Lister (into the inbox) |
+| `transcripts\` | One finished transcript per video or song: `<title> [<key>].txt` and `.json` | Transcription Workbench (straight into the library) |
+| `comments\` | Comment exports, for example `comments_export.csv` | Comment Workbench |
 
-The 11-character YouTube video ID in square brackets, for example
-`Me at the zoo [jNQXAC9IVRw].txt`, is the join key between apps.
-Suno songs use `suno-<uuid>` in the same place, for example
-`My Song [suno-1f859585-68cb-4440-b38e-3871c7088658].txt`. Read the key as everything
-inside the last pair of square brackets.
+## The join key
+
+The key is whatever is inside the **last** pair of square brackets in a file
+name:
+
+- YouTube: the 11-character video ID, for example `Me at the zoo [jNQXAC9IVRw].txt`
+- Suno: `suno-<uuid>`, for example `My Song [suno-1f859585-68cb-4440-b38e-3871c7088658].txt`
+
+The Comment Workbench only matches YouTube IDs, because it only holds YouTube
+comments. It counts Suno transcripts as "no video ID" and leaves them alone.
 
 ## Shared settings file
 
-`%APPDATA%\Aeonimus\handoff.json`, one small file every app reads and writes:
+`%APPDATA%\Aeonimus\handoff.json`, one small file every desktop app reads and
+writes:
 
 ```json
 {
+  "version": 1,
   "inbox": "C:\\Users\\<you>\\Downloads\\Aeonimus",
-  "library": "C:\\Users\\<you>\\Documents\\Aeonimus Library"
+  "library": "D:\\Aeonimus Library"
 }
 ```
 
-- If the file is missing or unreadable, the app uses the defaults above and
-  creates the file with them.
-- Changing the inbox or library location in any app's settings rewrites this
-  file, so every app follows. Apps read it each time they need it; they do not
-  cache it across runs.
-- Write it atomically (write a temp file, then replace) and keep unknown keys.
-- When the library location changes, the app offers to move the existing
-  library files (`link-lists`, `transcripts`, `comments`) to the new place.
-  Nothing is moved without asking, and nothing is overwritten.
+- Missing file: the app creates it with the defaults.
+- Damaged file: the app uses the defaults. The Comment Workbench also sets the
+  bad file aside as `handoff.json.bad`.
+- Keep keys you don't know about; another app may have written them. Only
+  change the key you mean to change. Write it atomically (temp file, then
+  replace).
+- Changing the library location in either workbench's settings rewrites this
+  file, so the other workbench follows. Apps read it each time they need it.
+- When the library moves, the app offers to move the existing `link-lists`,
+  `transcripts` and `comments` files. Nothing moves without asking, and
+  nothing is overwritten.
 
 The URL Lister cannot read this file (browser extensions cannot read local
 files), so it always saves to `Downloads\Aeonimus\link-lists`. Its setting
-"Save exports to the Aeonimus handoff folder" (on by default) can turn that off,
-for clients who do not use the other apps; then each CSV asks where to save.
+**Save exports to the Aeonimus handoff folder** (on by default) turns that off
+for clients who only use the extension. Then each CSV asks where to save.
 
-## The easy button
+## The easy button ("Import from URL Lister")
 
-Each workbench has one button that imports from the other apps:
-
-1. Move (not copy) every new file from `inbox\link-lists` into
-   `library\link-lists`. If a file with the same name is already there, add a
-   suffix (`name (2).csv`, `name (3).csv`, ...) instead of overwriting.
+1. **Move** (not copy) every new file from `inbox\link-lists` into
+   `library\link-lists`. If the name is taken, add ` (2)`, ` (3)` and so on.
+   Never overwrite. Files that are still downloading or locked are left for
+   next time (Chrome's `.crdownload` files never match).
 2. Pick the newest file in `library\link-lists` that this app has **not**
-   imported yet (newest modified time first).
-3. Show which file it picked (name and link count), import it from the library
-   copy, and start the work (for the Transcription Workbench: queue the
-   downloads and start the watcher).
-4. If nothing is new, say so in plain words and offer to import the newest file
-   again.
+   imported yet.
+3. Say which file it picked and how many links it has, then start the work:
+   - Transcription Workbench: queue the audio downloads and start the watcher.
+   - Comment Workbench: load the links into the harvest queue and start the
+     harvest.
+4. If nothing is new, say so plainly and offer the newest file again.
 
-Each app remembers what it already imported in its **own** app data, never in
-the shared folders, keyed by full path + modified time. A file that is changed
-later counts as new again.
+Each app remembers what it imported in its **own** app data, never in the
+shared folders, keyed by full path + modified time. A file that changes later
+counts as new again.
+
+| App | Where it remembers imports |
+|---|---|
+| Transcription Workbench | `%LOCALAPPDATA%\Aeonimus\TranscriptionWorkbench\` |
+| Comment Workbench | `%LOCALAPPDATA%\YouTubeCommentsWorkbench\aeonimus_imports.json` (transcript index: `aeonimus_transcripts.json`) |
+
+## Other handoff buttons
+
+- **Transcription Workbench** copies every finished transcript that has a key
+  in its name into `library\transcripts` (re-runs named `..._2` are shared
+  under the plain name). Files over 50 MB are skipped.
+- **Comment Workbench, Attach transcripts**: sweeps `inbox\transcripts` into
+  the library, links every `[videoId]` transcript to its video, and reports how
+  many matched. Select a comment in **Investigation** to see that video's
+  transcript under it (read-only, first 4,000 characters).
+- **Open handoff folder** opens the library. **Library location...** moves it.
 
 ## Rules
 
