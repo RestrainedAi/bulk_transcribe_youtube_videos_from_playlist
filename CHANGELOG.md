@@ -13,6 +13,17 @@ All notable changes to the Transcription Workbench.
   library's `transcripts` folder
 - **Latest transcripts** list: newest 5 finished transcripts with time;
   double-click (or Open) opens the .txt, **Show in folder** selects it in Explorer
+- Dashboard redesigned to the Figma build spec: 48 px header and 176 px sidebar,
+  page header with SYSTEM badge (green when running, red when stopped),
+  Watcher Control bar, 60 px stat tiles, Watcher status card with a 3-column
+  field grid and Runtime footer, Historical Counters and Latest transcripts
+  side by side, Terminal Quick Actions in two groups
+- Compact layout for wide, short windows (1200+ wide, under 900 tall, e.g.
+  1280x720): controls move into the top bar and Latest transcripts / Historical
+  Counters move into a right column
+- Latest transcripts: click the > to show the file in Explorer, right-click for
+  Open / Show in folder / Open transcripts folder
+- Auto-refresh has a clear unchecked state ("Polling paused")
 - Fixed: the Health field on the Dashboard was hidden behind Last error
 - Fixed: the help window's mouse wheel no longer breaks scrolling in the main window
 

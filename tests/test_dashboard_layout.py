@@ -86,3 +86,41 @@ def test_every_page_scrolls_in_a_small_window() -> None:
             assert hasattr(pg, "inner") and hasattr(pg, "canvas"), key
     finally:
         app._on_close()
+
+
+@pytest.mark.skipif(os.environ.get("TW_SKIP_GUI") == "1", reason="GUI tests disabled")
+def test_dashboard_compact_layout_fits_at_1280x720() -> None:
+    app = _make_panel(1280, 720)
+    try:
+        assert app._dash_compact is True
+        page = app.pages["dashboard"]
+        assert not page.needs_scroll()
+        qa = app.quick_actions_frame
+        assert qa.winfo_rooty() + qa.winfo_height() <= page.canvas.winfo_rooty() + page.canvas.winfo_height()
+        # right column is the fixed 400 px Latest transcripts / Historical Counters column
+        assert abs(app._d_latest.winfo_width() - 400) <= 2
+    finally:
+        app._on_close()
+
+
+@pytest.mark.skipif(os.environ.get("TW_SKIP_GUI") == "1", reason="GUI tests disabled")
+def test_dashboard_states_and_auto_refresh_box() -> None:
+    import watcher_control_panel as wcp
+    app = _make_panel(1000, 1024)
+    try:
+        app._set_dashboard_state(running=True, stale=False)
+        assert "Stop watcher" in str(app.power_btn.cget("text"))
+        frame = app._badge_parts[0][0]
+        assert frame.cget("bg") == wcp.D_SUCCESS_SURFACE == "#0f2a19"
+        app._set_dashboard_state(running=False, stale=False)
+        assert "Start watcher" in str(app.power_btn.cget("text"))
+        assert frame.cget("bg") == wcp.D_DANGER_SURFACE
+        app.failed_var.set(3)
+        app._color_counts()
+        assert app._stat_values["failed"].cget("fg") == wcp.D_DANGER_TEXT
+        app.auto_refresh_var.set(False)
+        assert app._poll_hint_var.get() == "Polling paused"
+        app.auto_refresh_var.set(True)
+        assert app._poll_hint_var.get() == "Polling every 1.0s"
+    finally:
+        app._on_close()

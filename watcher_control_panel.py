@@ -92,6 +92,34 @@ FONT_BODY = "Segoe UI Variable"
 FONT_BODY_FALLBACK = "Segoe UI"
 FONT_MONO = "Cascadia Mono"
 
+# Dashboard redesign tokens (Figma "Workbench tokens", Dark) - px sizes via negative Tk font sizes
+D_BG_DEEP = "#0c0e0f"
+D_BG = "#121415"
+D_SURFACE = "#1e2021"
+D_SURFACE_2 = "#1a1c1d"
+D_RAISED = "#282a2b"
+D_INPUT = "#333536"
+D_NAV_SEL = "#07152a"
+D_BORDER = "#3e4851"
+D_ACCENT = "#8dcdff"
+D_PRIMARY = "#004b70"
+D_SUCCESS = "#3ce36a"
+D_SUCCESS_SURFACE = "#0f2a19"
+D_DANGER = "#93000a"
+D_DANGER_TEXT = "#ffb4ab"
+D_DANGER_SURFACE = "#2a1717"
+D_TEXT = "#e2e2e3"
+D_MUTED = "#bdc8d3"
+F_APP = ("Segoe UI", -16, "bold")
+F_PAGE = ("Segoe UI Semibold", -20)
+F_SECTION = ("Segoe UI Semibold", -14)
+F_BODY = ("Segoe UI", -12)
+F_NAV = ("Segoe UI Semibold", -12)
+F_LABEL = ("Segoe UI Semibold", -11)
+F_VALUE_LG = ("Consolas", -20, "bold")
+F_VALUE = ("Consolas", -12)
+F_MONO_LABEL = ("Consolas", -11)
+
 NAV_KEYS = ("dashboard", "queue", "monitor", "logs", "live_transcribe", "handoff", "search", "review", "settings")
 MEDIA_EXTENSIONS = {
     ".mp4",
@@ -171,6 +199,40 @@ def age_label(iso_utc: object) -> str:
     return f"{seconds // 3600}h {(seconds % 3600) // 60}m ago"
 
 
+class MiniBar(tk.Canvas):
+    """8 px counter bar (track surface-2 + 1 px border, accent fill). Accepts bar["maximum"]/bar["value"]."""
+
+    def __init__(self, master: tk.Misc, *, fill: str, bg: str) -> None:
+        super().__init__(master, width=40, height=8, bg=bg, highlightthickness=0, bd=0)
+        self._fill = fill
+        self._vals = {"maximum": 1.0, "value": 0.0}
+        self.bind("<Configure>", lambda _e: self._redraw(), add="+")
+
+    def __setitem__(self, key, value):  # noqa: ANN001
+        if key in ("maximum", "value"):
+            try:
+                self._vals[key] = float(value)
+            except (TypeError, ValueError):
+                self._vals[key] = 0.0
+            self._redraw()
+        else:
+            super().__setitem__(key, value)
+
+    def __getitem__(self, key):  # noqa: ANN001
+        if key in ("maximum", "value"):
+            return self._vals[key]
+        return super().__getitem__(key)
+
+    def _redraw(self) -> None:
+        self.delete("all")
+        w = max(2, self.winfo_width())
+        self.create_rectangle(0, 0, w - 1, 7, fill=D_SURFACE_2, outline=D_BORDER)
+        mx = self._vals["maximum"] or 1.0
+        frac = max(0.0, min(1.0, self._vals["value"] / mx))
+        if frac > 0:
+            self.create_rectangle(1, 1, max(2, int((w - 1) * frac)), 6, fill=self._fill, outline="")
+
+
 class ScrollablePage(tk.Frame):
     """A page that scrolls vertically when its content is taller than the window.
 
@@ -189,8 +251,10 @@ class ScrollablePage(tk.Frame):
         self.vbar.grid(row=0, column=1, sticky="ns")
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
-        self.inner = tk.Frame(self.canvas, bg=bg)
+        self.inner = tk.Frame(self.canvas, bg=bg, padx=16, pady=16)
         self._win = self.canvas.create_window(0, 0, window=self.inner, anchor="nw")
+        self.vbar.grid_remove()
+        self._bar_shown = False
         self.inner.bind("<Configure>", self._sync, add="+")
         self.canvas.bind("<Configure>", self._sync, add="+")
 
@@ -200,6 +264,14 @@ class ScrollablePage(tk.Frame):
         h = max(ch, self.inner.winfo_reqheight())
         self.canvas.itemconfigure(self._win, width=cw, height=h)
         self.canvas.configure(scrollregion=(0, 0, cw, h))
+        need = self.inner.winfo_reqheight() > ch + 1
+        if need != self._bar_shown:
+            self._bar_shown = need
+            if need:
+                self.vbar.grid()
+            else:
+                self.vbar.grid_remove()
+                self.canvas.yview_moveto(0)
 
     def needs_scroll(self) -> bool:
         return self.inner.winfo_reqheight() > self.canvas.winfo_height() + 1
@@ -459,52 +531,26 @@ class ControlPanel(tk.Tk):
         root = tk.Frame(self, bg=BG_MAIN)
         root.pack(fill="both", expand=True)
 
-        head = tk.Frame(root, bg=TOPBAR_BG, height=64)
+        head = tk.Frame(root, bg=D_BG_DEEP, height=48)
         head.pack(fill="x")
         head.pack_propagate(False)
-        tk.Label(
-            head,
-            text=APP_NAME,
-            font=(FONT_HEADLINE, 16, "bold"),
-            fg=ACCENT,
-            bg=TOPBAR_BG,
-        ).pack(side="left", padx=(20, 10), pady=14)
-        tk.Label(
-            head,
-            text="Pipeline",
-            font=(FONT_HEADLINE, 11, "bold"),
-            fg=FG_DIM,
-            bg=TOPBAR_BG,
-        ).pack(side="left", pady=16)
-        tk.Label(
-            head,
-            textvariable=self.node_status_var,
-            font=(FONT_MONO, 10, "bold"),
-            fg=ACCENT_GREEN,
-            bg=TOPBAR_BG,
-        ).pack(side="right", padx=18, pady=16)
+        tk.Label(head, text=APP_NAME, font=F_APP, fg=D_ACCENT, bg=D_BG_DEEP).pack(side="left", padx=(16, 12))
+        tk.Label(head, text="Pipeline", font=F_NAV, fg=D_MUTED, bg=D_BG_DEEP).pack(side="left")
+        self._hdr_status_lbl = tk.Label(head, textvariable=self.node_status_var, font=F_MONO_LABEL, fg=D_SUCCESS, bg=D_BG_DEEP)
+        self._hdr_status_lbl.pack(side="right", padx=(0, 16))
+        self._hdr_dot = tk.Canvas(head, width=8, height=8, bg=D_BG_DEEP, highlightthickness=0, bd=0)
+        self._hdr_dot_id = self._hdr_dot.create_oval(0, 0, 8, 8, fill=D_SUCCESS, outline="")
+        self._hdr_dot.pack(side="right", padx=(0, 8))
 
-        body = tk.Frame(root, bg=BG_MAIN)
+        body = tk.Frame(root, bg=D_BG)
         body.pack(fill="both", expand=True)
 
-        side = tk.Frame(body, bg=SIDEBAR_BG, width=250)
+        side = tk.Frame(body, bg=D_SURFACE_2, width=176)
         side.pack(side="left", fill="y")
         side.pack_propagate(False)
 
-        tk.Label(
-            side,
-            text="VERSION",
-            font=(FONT_HEADLINE, 9, "bold"),
-            fg=FG_DIM,
-            bg=SIDEBAR_BG,
-        ).pack(anchor="w", padx=20, pady=(22, 4))
-        tk.Label(
-            side,
-            text=f"v{APP_VERSION}",
-            font=(FONT_MONO, 10),
-            fg=ACCENT,
-            bg=SIDEBAR_BG,
-        ).pack(anchor="w", padx=20, pady=(0, 16))
+        tk.Label(side, text="VERSION", font=F_LABEL, fg=D_MUTED, bg=D_SURFACE_2).pack(anchor="w", padx=20, pady=(16, 0))
+        tk.Label(side, text=f"v{APP_VERSION}", font=F_VALUE, fg=D_ACCENT, bg=D_SURFACE_2).pack(anchor="w", padx=20, pady=(4, 16))
 
         nav_items = [
             ("Dashboard", "dashboard"),
@@ -518,41 +564,20 @@ class ControlPanel(tk.Tk):
             ("Settings", "settings"),
         ]
         for text, key in nav_items:
-            lbl = tk.Label(
-                side,
-                text=f"  {text.upper()}",
-                font=(FONT_HEADLINE, 11, "bold"),
-                fg=FG,
-                bg=SIDEBAR_BG,
-                anchor="w",
-                cursor="hand2",
-                pady=12,
-                padx=12,
-            )
-            lbl.pack(fill="x", padx=10, pady=2)
+            lbl = tk.Label(side, text=text.upper(), font=F_NAV, fg=D_MUTED, bg=D_SURFACE_2, anchor="w",
+                           cursor="hand2", padx=12, pady=7)
+            lbl.pack(fill="x", padx=8, pady=(0, 4))
             lbl.bind("<Button-1>", lambda _e, k=key: self._show_page(k))
             self._nav_buttons[key] = lbl
 
-        tk.Label(
-            side,
-            text="",
-            bg=SIDEBAR_BG,
-        ).pack(fill="both", expand=True)
-        doc = tk.Label(
-            side,
-            text="  DOCUMENTATION",
-            font=(FONT_HEADLINE, 9, "bold"),
-            fg=FG_DIM,
-            bg=SIDEBAR_BG,
-            anchor="w",
-            cursor="hand2",
-            pady=10,
-        )
-        doc.pack(fill="x", padx=10, pady=(0, 16))
-        doc.bind("<Button-1>", lambda _e: open_path(ROOT / "readme.md"))
+        tk.Label(side, text="", bg=D_SURFACE_2).pack(fill="both", expand=True)
+        doc = tk.Label(side, text="DOCUMENTATION", font=F_NAV, fg=D_MUTED, bg=D_SURFACE_2, anchor="w",
+                       cursor="hand2", padx=12, pady=7)
+        doc.pack(fill="x", padx=8, pady=(0, 16))
+        doc.bind("<Button-1>", lambda _e: open_path(ROOT / "README.md"))
 
-        self.content_host = tk.Frame(body, bg=BG_MAIN)
-        self.content_host.pack(side="right", fill="both", expand=True, padx=(0, 14), pady=12)
+        self.content_host = tk.Frame(body, bg=D_BG)
+        self.content_host.pack(side="right", fill="both", expand=True)
 
         self.pages: dict[str, ScrollablePage] = {}
         for key in NAV_KEYS:
@@ -590,9 +615,9 @@ class ControlPanel(tk.Tk):
     def _highlight_nav(self, key: str) -> None:
         for k, lbl in self._nav_buttons.items():
             if k == key:
-                lbl.configure(bg="#07152a", fg=ACCENT, highlightbackground=ACCENT, highlightthickness=1)
+                lbl.configure(bg=D_NAV_SEL, fg=D_ACCENT, highlightbackground=D_ACCENT, highlightthickness=1, pady=6)
             else:
-                lbl.configure(bg=SIDEBAR_BG, fg=FG_DIM, highlightthickness=0)
+                lbl.configure(bg=D_SURFACE_2, fg=D_MUTED, highlightthickness=0, pady=7)
         self._current_nav = key
 
     def _show_page(self, key: str) -> None:
@@ -694,144 +719,361 @@ class ControlPanel(tk.Tk):
         parent.grid_rowconfigure(0, weight=1)
         parent.grid_columnconfigure(0, weight=1)
 
+    # ---- Dashboard (Figma redesign, spec sections 4-7) ----
+    def _apply_dash_styles(self) -> None:
+        st = ttk.Style(self)
+        base = dict(font=F_BODY, padding=(12, 6), relief="flat", borderwidth=1, focusthickness=0)
+        st.configure("Dash.Primary.TButton", background=D_PRIMARY, foreground=D_ACCENT, bordercolor=D_ACCENT,
+                     lightcolor=D_PRIMARY, darkcolor=D_PRIMARY, focuscolor=D_PRIMARY, **base)
+        st.map("Dash.Primary.TButton", background=[("disabled", D_SURFACE_2), ("active", "#005a86")],
+               foreground=[("disabled", D_MUTED)])
+        st.configure("Dash.Secondary.TButton", background=D_RAISED, foreground=D_TEXT, bordercolor=D_BORDER,
+                     lightcolor=D_RAISED, darkcolor=D_RAISED, focuscolor=D_RAISED, **base)
+        st.map("Dash.Secondary.TButton", background=[("disabled", D_SURFACE_2), ("active", D_INPUT)],
+               foreground=[("disabled", D_MUTED)])
+        st.configure("Dash.Danger.TButton", background=D_DANGER, foreground=D_DANGER_TEXT, bordercolor=D_DANGER,
+                     lightcolor=D_DANGER, darkcolor=D_DANGER, focuscolor=D_DANGER, **base)
+        st.map("Dash.Danger.TButton", background=[("disabled", D_SURFACE_2), ("active", "#ad0010")],
+               foreground=[("disabled", D_MUTED)])
+        small = dict(base, padding=(12, 4))
+        st.configure("Dash.Small.TButton", background=D_RAISED, foreground=D_TEXT, bordercolor=D_BORDER,
+                     lightcolor=D_RAISED, darkcolor=D_RAISED, focuscolor=D_RAISED, **small)
+        st.map("Dash.Small.TButton", background=[("active", D_INPUT)])
+        st.configure("Latest.Treeview", background=D_SURFACE, fieldbackground=D_SURFACE, foreground=D_TEXT,
+                     rowheight=24, font=F_BODY, borderwidth=0, indent=0)
+        st.map("Latest.Treeview", background=[("selected", D_RAISED)], foreground=[("selected", D_TEXT)])
+        st.layout("Latest.Treeview", [("Treeview.treearea", {"sticky": "nswe"})])
+
+    def _dcard(self, parent: tk.Misc, *, border: str = D_BORDER) -> tuple[tk.Frame, tk.Frame]:
+        card = tk.Frame(parent, bg=D_SURFACE, highlightthickness=1, highlightbackground=border)
+        inner = tk.Frame(card, bg=D_SURFACE)
+        inner.pack(fill="both", expand=True, padx=12, pady=12)
+        return card, inner
+
+    def _dlabel(self, parent: tk.Misc, text: str = "", *, font=F_BODY, fg: str = D_TEXT,  # noqa: ANN001
+                textvariable: tk.Variable | None = None, clip: bool = False) -> tk.Label:
+        lbl = tk.Label(parent, text=text, textvariable=textvariable, font=font, fg=fg, bg=parent.cget("bg"), anchor="w",
+                       justify="left", padx=0, pady=0, bd=0)
+        if clip:
+            lbl.configure(width=1)  # request no width: long values clip instead of widening the window
+        return lbl
+
+    def _divider(self, parent: tk.Misc) -> tk.Frame:
+        return tk.Frame(parent, bg=D_BORDER, width=1, height=24)
+
+    def _badge(self, parent: tk.Misc) -> tk.Frame:
+        b = tk.Frame(parent, bg=D_SUCCESS_SURFACE, highlightthickness=1, highlightbackground=D_SUCCESS)
+        dot = tk.Canvas(b, width=8, height=8, bg=D_SUCCESS_SURFACE, highlightthickness=0, bd=0)
+        dot_id = dot.create_oval(0, 0, 8, 8, fill=D_SUCCESS, outline="")
+        dot.pack(side="left", padx=(12, 8), pady=10)
+        lbl = tk.Label(b, textvariable=self.node_status_var, font=F_MONO_LABEL, fg=D_SUCCESS, bg=D_SUCCESS_SURFACE)
+        lbl.pack(side="left", padx=(0, 12), pady=5)
+        self._badge_parts.append((b, dot, dot_id, lbl))
+        return b
+
     def _build_page_dashboard(self, parent: tk.Frame) -> None:
-        outer = tk.Frame(parent, bg=BG_MAIN)
+        self._apply_dash_styles()
+        self._badge_parts: list = []
+        self._dash_compact: bool | None = None
+        outer = tk.Frame(parent, bg=D_BG)
         outer.pack(fill="both", expand=True)
+        self._dash_outer = outer
 
         self.banner_frame = tk.Frame(outer, bg=WARN_BG)
-        self.banner_label = tk.Label(
-            self.banner_frame,
-            text="",
-            anchor="w",
-            justify="left",
-            wraplength=700,
-            padx=12,
-            pady=6,
-            fg="#fff",
-            bg=WARN_BG,
-            font=(FONT_BODY, 10),
-        )
+        self.banner_label = tk.Label(self.banner_frame, text="", anchor="w", justify="left", wraplength=700,
+                                     padx=12, pady=6, fg="#fff", bg=WARN_BG, font=F_BODY)
         self.banner_label.pack(fill="x")
         self._autowrap(self.banner_label, pad=28)
 
-        top = tk.Frame(outer, bg=BG_MAIN)
-        top.pack(fill="x", pady=(0, 8))
-        self._headline(top, "Pipeline Watcher", size=16).pack(side="left")
-        self._body_label(top, "Watch folder > Whisper > Handoff", fg=FG_DIM, size=9).pack(side="left", padx=(12, 0), pady=(4, 0))
-        badge = tk.Frame(top, bg="#2a1717", highlightthickness=1, highlightbackground="#8f5959", padx=10, pady=3)
-        badge.pack(side="right")
-        self._body_label(badge, textvariable=self.node_status_var, fg="#ffb4ab", mono=True, size=9, bold=True).pack()
+        # page header (tall) / top bar (compact)
+        self._d_head = tk.Frame(outer, bg=D_BG)
+        self._d_titleblock = tk.Frame(outer, bg=D_BG)
+        self._d_crumb_row = tk.Frame(outer, bg=D_BG)
+        self._d_title_row = tk.Frame(outer, bg=D_BG)
+        self._d_crumb = self._dlabel(outer, "PIPELINE / MAIN", font=F_MONO_LABEL, fg=D_ACCENT)
+        self._d_title = self._dlabel(outer, "Pipeline Watcher", font=F_PAGE)
+        self._d_sub = self._dlabel(outer, "Watch folder \u2022 Whisper \u2022 Handoff", fg=D_MUTED)
+        self._d_badge = self._badge(outer)
 
-        # Compact control bar across the top
-        bar = tk.Frame(outer, bg=BG_CARD, highlightthickness=1, highlightbackground=CARD_BORDER)
-        bar.pack(fill="x", pady=(0, 8))
-        bi = tk.Frame(bar, bg=BG_CARD)
-        bi.pack(fill="x", padx=12, pady=6)
-        self._headline(bi, "Watcher", size=12, fg=ACCENT).pack(side="left", padx=(0, 12))
-        self.power_btn = ttk.Button(bi, text="Start watcher", style="Accent.TButton", command=self._toggle_watcher_power)
-        self.power_btn.pack(side="left", ipadx=6)
-        ttk.Button(bi, text="Refresh now", command=self.refresh_once).pack(side="left", padx=(8, 0))
-        tk.Checkbutton(
-            bi, text="Auto-refresh (every 1s)", variable=self.auto_refresh_var,
-            bg=BG_CARD, fg=FG, activebackground=BG_CARD, activeforeground=FG, selectcolor=FIELD_BG,
-            highlightthickness=0, bd=0, font=(FONT_BODY, 9),
-        ).pack(side="left", padx=(14, 0))
+        # watcher controls bar
+        self._d_ctrl, ci = self._dcard(outer)
+        ci.pack_configure(pady=8)
+        self._dlabel(ci, "Watcher Control", font=F_SECTION, fg=D_ACCENT).pack(side="left")
+        self._divider(ci).pack(side="left", padx=12)
+        self.power_btn = ttk.Button(ci, text="\u25b6  Start watcher", style="Dash.Primary.TButton",
+                                    command=self._toggle_watcher_power)
+        self.power_btn.pack(side="left")
+        ttk.Button(ci, text="\u27f3  Refresh now", style="Dash.Secondary.TButton", command=self.refresh_once).pack(
+            side="left", padx=(12, 0))
+        self._divider(ci).pack(side="left", padx=12)
+        self._auto_box = tk.Canvas(ci, width=16, height=16, bg=D_SURFACE, highlightthickness=0, bd=0, cursor="hand2")
+        self._auto_box.pack(side="left")
+        auto_lbl = self._dlabel(ci, "Auto-refresh")
+        auto_lbl.configure(cursor="hand2")
+        auto_lbl.pack(side="left", padx=(8, 0))
+        self._poll_hint_var = tk.StringVar(value="")
+        self._dlabel(ci, textvariable=self._poll_hint_var, font=F_VALUE, fg=D_MUTED).pack(side="left", padx=(8, 0))
+        for w in (self._auto_box, auto_lbl):
+            w.bind("<Button-1>", lambda _e: self.auto_refresh_var.set(not self.auto_refresh_var.get()))
+        self.auto_refresh_var.trace_add("write", lambda *_a: self._draw_auto_refresh())
+        self._draw_auto_refresh()
 
-        # Stat strip (one short row)
-        strip = tk.Frame(outer, bg=BG_MAIN)
-        strip.pack(fill="x", pady=(0, 8))
-        stats = [
-            ("Queue", self.queue_var, ACCENT_GOLD),
-            ("Completed", self.completed_var, ACCENT_MINT),
-            ("Failed", self.failed_var, ACCENT_RED),
-            ("Processed", self.processed_var, ACCENT),
-            ("Segment (s)", self.segment_var, "#8dcdff"),
-        ]
-        for i, (title, var, color) in enumerate(stats):
-            strip.columnconfigure(i, weight=1, uniform="stat")
-            self._stat_chip(strip, title, var, color=color).grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 6, 0))
+        # stat tiles
+        self._d_stats = tk.Frame(outer, bg=D_BG)
+        self._stat_values: dict[str, tk.Label] = {}
+        stats = [("queue", "QUEUE", self.queue_var), ("completed", "COMPLETED", self.completed_var),
+                 ("failed", "FAILED", self.failed_var), ("processed", "PROCESSED", self.processed_var),
+                 ("segment", "SEGMENT (S)", self.segment_var)]
+        for i, (key, title, var) in enumerate(stats):
+            self._d_stats.columnconfigure(i, weight=1, uniform="tiles")
+            tile = tk.Frame(self._d_stats, bg=D_SURFACE_2, highlightthickness=1, highlightbackground=D_BORDER)
+            tile.grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 8, 0))
+            tk.Label(tile, text=title, font=F_LABEL, fg=D_MUTED, bg=D_SURFACE_2, anchor="w").pack(fill="x", padx=12, pady=(8, 0))
+            v = tk.Label(tile, textvariable=var, font=F_VALUE_LG, fg=D_ACCENT, bg=D_SURFACE_2, anchor="w", width=1)
+            v.pack(fill="x", padx=12, pady=(0, 8))
+            self._stat_values[key] = v
 
-        self._build_easy_import(outer, compact=True).pack(fill="x", pady=(0, 8))
-        links_panel = youtube_intake.build_panel(
+        # URL Lister + Add links cards
+        self._d_url = self._build_easy_import(outer, compact=True, dash=True)
+        self._d_links = youtube_intake.build_panel(
             outer, self.youtube, theme=self._youtube_theme(), get_dirs=self._youtube_dirs, compact=True,
             on_open_transcripts=self._open_library_transcripts,
         )
-        links_panel.pack(fill="x", pady=(0, 8))
-        self._build_latest_transcripts(links_panel)
 
-        status = self._card(outer, pady=(0, 8))
-        sf = tk.Frame(status, bg=BG_CARD)
-        sf.pack(fill="both", expand=True, padx=0, pady=0)
-        status_head = tk.Frame(sf, bg="#3a3a3a")
-        status_head.pack(fill="x")
-        head_inner = tk.Frame(status_head, bg="#3a3a3a")
-        head_inner.pack(fill="x", padx=14, pady=6)
-        tk.Label(
-            head_inner,
-            textvariable=self.summary_var,
-            font=(FONT_HEADLINE, 14, "bold"),
-            fg=FG,
-            bg="#3a3a3a",
-            anchor="w",
-        ).pack(side="left")
-        rt = tk.Frame(head_inner, bg="#3a3a3a")
-        rt.pack(side="right")
-        self._body_label(rt, "RUNTIME:", fg=FG_DIM, mono=True, size=9).pack(side="left")
-        self._body_label(rt, textvariable=self.heartbeat_var, fg=FG, mono=True, size=9).pack(side="left", padx=(6, 16))
-        self._body_label(rt, "LOAD:", fg=FG_DIM, mono=True, size=9).pack(side="left")
-        self._body_label(rt, textvariable=self.queue_health_var, fg=ACCENT_MINT, mono=True, size=9, bold=True).pack(side="left", padx=(6, 0))
-
-        details = tk.Frame(sf, bg=BG_CARD)
-        details.pack(fill="x", padx=14, pady=(4, 8))
-        for c in range(5):
-            details.columnconfigure(c, weight=1, uniform="detail")
-        fields = [
-            ("Phase", self.phase_var), ("Current file", self.file_var), ("Watcher PID", self.pid_var),
-            ("Worker PID", self.worker_pid_var), ("Heartbeat", self.heartbeat_var),
-            ("Last progress", self.progress_var), ("Segment end", self.segment_var),
-            ("Active jobs", self.active_jobs_var), ("Health", self.health_var), ("Last error", self.error_var),
+        # watcher status card
+        self._d_status = tk.Frame(outer, bg=D_SURFACE, highlightthickness=1, highlightbackground=D_BORDER)
+        sh = tk.Frame(self._d_status, bg=D_RAISED, height=40)
+        sh.pack(fill="x")
+        sh.pack_propagate(False)
+        self._status_dot = tk.Canvas(sh, width=8, height=8, bg=D_RAISED, highlightthickness=0, bd=0)
+        self._status_dot_id = self._status_dot.create_oval(0, 0, 8, 8, fill=D_SUCCESS, outline="")
+        self._status_dot.pack(side="left", padx=(12, 8))
+        tk.Label(sh, textvariable=self.summary_var, font=F_SECTION, fg=D_TEXT, bg=D_RAISED).pack(side="left")
+        self._load_val = tk.Label(sh, textvariable=self.queue_health_var, font=F_MONO_LABEL, fg=D_SUCCESS, bg=D_RAISED)
+        self._load_val.pack(side="right", padx=(0, 12))
+        tk.Label(sh, text="LOAD:", font=F_MONO_LABEL, fg=D_MUTED, bg=D_RAISED).pack(side="right", padx=(0, 4))
+        sb = tk.Frame(self._d_status, bg=D_SURFACE)
+        sb.pack(fill="both", expand=True, padx=12, pady=12)
+        grid = tk.Frame(sb, bg=D_SURFACE)
+        grid.pack(fill="x")
+        grid.columnconfigure(0, minsize=120)
+        grid.columnconfigure(1, weight=1, uniform="stcol")
+        grid.columnconfigure(2, weight=1, uniform="stcol")
+        cols = [
+            [("PHASE", self.phase_var), ("WORKER PID", self.worker_pid_var), ("SEGMENT END", self.segment_var)],
+            [("CURRENT FILE", self.file_var), ("HEARTBEAT", self.heartbeat_var), ("ACTIVE JOBS", self.active_jobs_var)],
+            [("WATCHER PID", self.pid_var), ("LAST PROGRESS", self.progress_var), ("LAST ERROR", self.error_var)],
         ]
-        for i, (label, var) in enumerate(fields):
-            self._row_dark(details, i, label, var, cols=5)
-        self._autowrap(self._body_label(details, textvariable=self.detail_var, fg=FG_DIM, size=9)).grid(
-            row=2, column=0, columnspan=5, sticky="ew", pady=(2, 0)
-        )
+        for c, fields in enumerate(cols):
+            for r, (label, var) in enumerate(fields):
+                cell = tk.Frame(grid, bg=D_SURFACE)
+                cell.grid(row=r, column=c, sticky="ew", padx=(0 if c == 0 else 16, 0), pady=(0 if r == 0 else 8, 0))
+                self._dlabel(cell, label, font=F_LABEL, fg=D_MUTED).pack(fill="x")
+                self._dlabel(cell, textvariable=var, font=F_VALUE, clip=True).pack(fill="x")
+        foot = tk.Frame(sb, bg=D_SURFACE)
+        foot.pack(fill="x", pady=(8, 0))
+        tk.Label(foot, textvariable=self.heartbeat_var, font=F_VALUE, fg=D_TEXT, bg=D_SURFACE, anchor="e").pack(side="right")
+        tk.Label(foot, text="RUNTIME:", font=F_MONO_LABEL, fg=D_MUTED, bg=D_SURFACE).pack(side="right", padx=(12, 6))
+        self._dlabel(foot, textvariable=self.detail_var, fg=D_MUTED, clip=True).pack(side="left", fill="x", expand=True)
 
-        counters = self._card(outer, pady=(0, 8))
-        gf = tk.Frame(counters, bg=BG_CARD)
-        gf.pack(fill="x", padx=14, pady=8)
-        header = tk.Frame(gf, bg=BG_CARD)
-        header.pack(fill="x")
-        self._headline(header, "Historical Counters", size=12, fg=FG).pack(side="left")
-        gg = tk.Frame(gf, bg=BG_CARD)
-        gg.pack(fill="x", pady=(4, 0))
-        self.queue_bar = self._gauge_dark(gg, 0, "Queue", self.queue_var)
-        self.completed_bar = self._gauge_dark(gg, 0, "Completed", self.completed_var, col=3)
-        self.failed_bar = self._gauge_dark(gg, 1, "Failed", self.failed_var)
-        self.processed_bar = self._gauge_dark(gg, 1, "Processed", self.processed_var, col=3)
+        # historical counters card
+        self._d_counters, cf = self._dcard(outer)
+        self._dlabel(cf, "Historical Counters", font=F_SECTION).pack(fill="x", pady=(0, 8))
+        bars = tk.Frame(cf, bg=D_SURFACE)
+        bars.pack(fill="x")
+        bars.columnconfigure(0, minsize=88)
+        bars.columnconfigure(1, weight=1)
+        self._counter_values: dict[str, tk.Label] = {}
+        for r, (key, title, var) in enumerate([("queue", "QUEUE", self.queue_var), ("completed", "COMPLETED", self.completed_var),
+                                               ("failed", "FAILED", self.failed_var), ("processed", "PROCESSED", self.processed_var)]):
+            tk.Label(bars, text=title, font=F_LABEL, fg=D_MUTED, bg=D_SURFACE, anchor="w").grid(
+                row=r, column=0, sticky="w", pady=(0 if r == 0 else 12, 0))
+            bar = MiniBar(bars, fill=D_DANGER_TEXT if key == "failed" else D_ACCENT, bg=D_SURFACE)
+            bar.grid(row=r, column=1, sticky="ew", padx=(12, 12), pady=(0 if r == 0 else 12, 0))
+            setattr(self, f"{key}_bar", bar)
+            v = tk.Label(bars, textvariable=var, font=F_VALUE, fg=D_MUTED, bg=D_SURFACE, anchor="e", width=4)
+            v.grid(row=r, column=2, sticky="e", pady=(0 if r == 0 else 12, 0))
+            self._counter_values[key] = v
 
-        act = self._card(outer)
-        af = tk.Frame(act, bg=BG_CARD)
-        af.pack(fill="x", padx=14, pady=8)
-        self._body_label(af, "TERMINAL QUICK ACTIONS", mono=True, fg=FG_DIM, size=9, bold=True).pack(anchor="w")
-        ar = tk.Frame(af, bg=BG_CARD)
-        ar.pack(fill="x", pady=(6, 0))
-        ttk.Button(ar, text="Open watch folder", command=lambda: open_path(self._watch_dir())).pack(side="left")
-        ttk.Button(ar, text="Open videos", command=lambda: open_path(self._completed_dir())).pack(side="left", padx=(8, 0))
-        ttk.Button(ar, text="Open transcripts", command=lambda: open_path(self._transcript_dir())).pack(side="left", padx=(8, 0))
-        ttk.Button(ar, text="Open CSV", command=lambda: open_path(self._csv_dir())).pack(side="left", padx=(8, 0))
-        ttk.Button(ar, text="Open JSON", command=lambda: open_path(self._json_dir())).pack(side="left", padx=(8, 0))
-        ar2 = tk.Frame(af, bg=BG_CARD)
-        ar2.pack(fill="x", pady=(6, 0))
-        ttk.Button(ar2, text="Reconcile finished job", command=self._reconcile_finished_job).pack(side="left")
-        ttk.Button(ar2, text="Clear last error", command=self._clear_last_error).pack(side="left", padx=(8, 0))
-        self.quick_actions_frame = act
+        # latest transcripts card
+        self._d_latest, lf = self._dcard(outer)
+        lh = tk.Frame(lf, bg=D_SURFACE)
+        lh.pack(fill="x", pady=(0, 8))
+        self._dlabel(lh, "Latest transcripts", font=F_SECTION).pack(side="left")
+        self._dlabel(lh, "Last 5 \u00b7 double-click to open", fg=D_MUTED).pack(side="right")
+        self._build_latest_transcripts(lf)
+
+        # terminal quick actions
+        self._d_quick, qf = self._dcard(outer)
+        self._d_quick_title = self._dlabel(qf, "TERMINAL QUICK ACTIONS", font=F_MONO_LABEL, fg=D_MUTED)
+        self._d_qrow1 = tk.Frame(qf, bg=D_SURFACE)
+        self._d_qrow2 = tk.Frame(qf, bg=D_SURFACE)
+        self._d_qbtns1 = [
+            ttk.Button(qf, text="Open watch folder", style="Dash.Small.TButton", command=lambda: open_path(self._watch_dir())),
+            ttk.Button(qf, text="Open videos", style="Dash.Small.TButton", command=lambda: open_path(self._completed_dir())),
+            ttk.Button(qf, text="Open transcripts", style="Dash.Small.TButton", command=self._open_library_transcripts),
+            ttk.Button(qf, text="Open CSV", style="Dash.Small.TButton", command=lambda: open_path(self._csv_dir())),
+            ttk.Button(qf, text="Open JSON", style="Dash.Small.TButton", command=lambda: open_path(self._json_dir())),
+        ]
+        self._d_qbtns2 = [
+            ttk.Button(qf, text="Reconcile finished job", style="Dash.Small.TButton", command=self._reconcile_finished_job),
+            ttk.Button(qf, text="Clear last error", style="Dash.Small.TButton", command=self._clear_last_error),
+        ]
+        self.quick_actions_frame = self._d_quick
+
+        # containers for the two arrangements
+        self._d_lower = tk.Frame(outer, bg=D_BG)
+        self._d_lower.columnconfigure(0, weight=1, uniform="lower")
+        self._d_lower.columnconfigure(1, weight=1, uniform="lower")
+        self._d_cols = tk.Frame(outer, bg=D_BG)
+        self._d_cols.columnconfigure(0, weight=1)
+        self._d_cols.columnconfigure(1, minsize=400)
+        self._d_left = tk.Frame(outer, bg=D_BG)
+        self._d_right = tk.Frame(outer, bg=D_BG)
+
+        # containers were created after the cards; raise the cards so they draw above them
+        for w in (self._d_url, self._d_links, self._d_status, self._d_counters, self._d_latest, self._d_ctrl):
+            w.lift()
+        self._layout_dashboard(compact=False)
+        self.bind("<Configure>", self._maybe_relayout_dashboard, add="+")
+        self._set_dashboard_state(running=False, stale=False)
+
+    def _draw_auto_refresh(self) -> None:
+        c = self._auto_box
+        c.delete("all")
+        on = bool(self.auto_refresh_var.get())
+        if on:
+            c.create_rectangle(0, 0, 15, 15, fill=D_ACCENT, outline=D_ACCENT)
+            c.create_line(4, 8, 7, 11, 12, 4, fill=D_BG_DEEP, width=2)
+            self._poll_hint_var.set("Polling every 1.0s")
+        else:
+            c.create_rectangle(0, 0, 15, 15, fill=D_SURFACE_2, outline=D_BORDER)
+            self._poll_hint_var.set("Polling paused")
+
+    def _maybe_relayout_dashboard(self, event: tk.Event) -> None:
+        if event.widget is not self:
+            return
+        compact = event.width >= 1200 and event.height < 900
+        if compact != self._dash_compact:
+            self._layout_dashboard(compact=compact)
+
+    @staticmethod
+    def _forget(*widgets: tk.Misc) -> None:
+        for w in widgets:
+            w.pack_forget()
+            w.grid_forget()
+
+    def _layout_dashboard(self, *, compact: bool) -> None:
+        self._dash_compact = compact
+        banner_shown = self.banner_frame.winfo_ismapped()
+        self._forget(self.banner_frame, self._d_head, self._d_titleblock, self._d_crumb_row, self._d_title_row,
+                     self._d_crumb, self._d_title, self._d_sub, self._d_badge, self._d_ctrl, self._d_stats,
+                     self._d_url, self._d_links, self._d_status, self._d_counters, self._d_latest, self._d_quick,
+                     self._d_quick_title, self._d_qrow1, self._d_qrow2, self._d_lower, self._d_cols,
+                     self._d_left, self._d_right, *self._d_qbtns1, *self._d_qbtns2)
+        o = self._dash_outer
+        gap = 12
+        if banner_shown:
+            self.banner_frame.pack(in_=o, fill="x", pady=(0, 10))
+        if not compact:
+            self._d_head.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_titleblock.pack(in_=self._d_head, side="left")
+            self._d_crumb_row.pack(in_=self._d_titleblock, fill="x")
+            self._d_title_row.pack(in_=self._d_titleblock, fill="x", pady=(4, 0))
+            self._d_crumb.pack(in_=self._d_crumb_row, side="left")
+            self._d_title.pack(in_=self._d_title_row, side="left")
+            self._d_sub.pack(in_=self._d_title_row, side="left", padx=(12, 0), pady=(6, 0))
+            self._d_badge.pack(in_=self._d_head, side="right")
+            self._d_ctrl.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_stats.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_url.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_links.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_status.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_lower.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_counters.grid(in_=self._d_lower, row=0, column=0, sticky="nsew", padx=(0, 6))
+            self._d_latest.grid(in_=self._d_lower, row=0, column=1, sticky="nsew", padx=(6, 0))
+            self._d_quick.pack(in_=o, fill="x")
+            self._d_quick_title.pack(fill="x", pady=(0, 8))
+            self._d_qrow1.pack(fill="x", pady=(0, 8))
+            self._d_qrow2.pack(fill="x")
+            for i, b in enumerate(self._d_qbtns1):
+                b.pack(in_=self._d_qrow1, side="left", padx=(0 if i == 0 else 8, 0))
+            for i, b in enumerate(self._d_qbtns2):
+                b.pack(in_=self._d_qrow2, side="left", padx=(0 if i == 0 else 8, 0))
+        else:
+            self._d_head.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_titleblock.pack(in_=self._d_head, side="left")
+            self._d_crumb_row.pack(in_=self._d_titleblock, fill="x")
+            self._d_title_row.pack(in_=self._d_titleblock, fill="x", pady=(4, 0))
+            self._d_crumb.pack(in_=self._d_crumb_row, side="left")
+            self._d_sub.pack(in_=self._d_crumb_row, side="left", padx=(12, 0))
+            self._d_title.pack(in_=self._d_title_row, side="left")
+            self._d_badge.pack(in_=self._d_title_row, side="left", padx=(12, 0))
+            self._d_ctrl.pack(in_=self._d_head, side="left", fill="x", expand=True, padx=(16, 0))
+            self._d_stats.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_cols.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_left.grid(in_=self._d_cols, row=0, column=0, sticky="nsew", padx=(0, gap))
+            self._d_right.grid(in_=self._d_cols, row=0, column=1, sticky="nsew")
+            self._d_url.pack(in_=self._d_left, fill="x", pady=(0, gap))
+            self._d_links.pack(in_=self._d_left, fill="x", pady=(0, gap))
+            self._d_status.pack(in_=self._d_left, fill="x")
+            self._d_latest.pack(in_=self._d_right, fill="x", pady=(0, gap))
+            self._d_counters.pack(in_=self._d_right, fill="both", expand=True)
+            self._d_quick.pack(in_=o, fill="x")
+            self._d_quick_title.pack(side="left", padx=(0, 16))
+            self._d_qrow1.pack(side="left", fill="x", expand=True)
+            for i, b in enumerate(self._d_qbtns1 + self._d_qbtns2):
+                b.pack(in_=self._d_qrow1, side="left", padx=(0 if i == 0 else 8, 0))
+
+    def _set_dashboard_state(self, *, running: bool, stale: bool) -> None:
+        if running:
+            self.power_btn.configure(text="\u25a0  Stop watcher", style="Dash.Danger.TButton")
+        else:
+            self.power_btn.configure(text="\u25b6  Start watcher", style="Dash.Primary.TButton")
+        ok = running and not stale
+        fg = D_SUCCESS if ok else D_DANGER_TEXT
+        surface = D_SUCCESS_SURFACE if ok else D_DANGER_SURFACE
+        for frame, dot, dot_id, lbl in getattr(self, "_badge_parts", []):
+            frame.configure(bg=surface, highlightbackground=fg)
+            dot.configure(bg=surface)
+            dot.itemconfigure(dot_id, fill=fg)
+            lbl.configure(bg=surface, fg=fg)
+        if hasattr(self, "_hdr_dot"):
+            self._hdr_dot.itemconfigure(self._hdr_dot_id, fill=fg)
+            self._hdr_status_lbl.configure(fg=fg)
+        if hasattr(self, "_status_dot"):
+            self._status_dot.itemconfigure(self._status_dot_id, fill=fg)
+            load = self.queue_health_var.get()
+            self._load_val.configure(fg=D_SUCCESS if load == "ACTIVE" else (D_DANGER_TEXT if load in ("FAULT", "STALE") else D_MUTED))
+        self._color_counts()
+
+    def _color_counts(self) -> None:
+        if not hasattr(self, "_stat_values"):
+            return
+        def num(var: tk.Variable) -> float:
+            try:
+                return float(var.get())
+            except (tk.TclError, ValueError, TypeError):
+                return 0.0
+        failed = num(self.failed_var)
+        self._stat_values["failed"].configure(fg=D_DANGER_TEXT if failed > 0 else D_MUTED)
+        self._stat_values["completed"].configure(fg=D_SUCCESS)
+        for key, var in (("queue", self.queue_var), ("completed", self.completed_var),
+                         ("failed", self.failed_var), ("processed", self.processed_var)):
+            v = num(var)
+            color = (D_DANGER_TEXT if key == "failed" else D_ACCENT) if v > 0 else D_MUTED
+            self._counter_values[key].configure(fg=color)
 
     def _youtube_theme(self) -> dict:
         return {
             "card": BG_CARD, "fg": FG, "dim": FG_DIM, "accent": ACCENT, "red": ACCENT_RED,
             "green": ACCENT_MINT, "field": FIELD_BG, "border": CARD_BORDER,
             "headline_font": FONT_HEADLINE, "body_font": FONT_BODY, "mono_font": FONT_MONO,
+            "card": D_SURFACE, "fg": D_TEXT, "dim": D_MUTED, "accent": D_ACCENT, "green": D_SUCCESS,
+            "field": D_INPUT, "border": D_BORDER, "red": D_DANGER_TEXT,
+            "pad": 12, "pad_y": 12, "title_font": F_SECTION, "status_font": F_BODY, "entry_font": F_BODY,
+            "progress_font": F_VALUE, "primary_style": "Dash.Primary.TButton",
+            "secondary_style": "Dash.Secondary.TButton",
         }
 
     def _youtube_dirs(self) -> tuple[Path, list[Path]]:
@@ -1883,7 +2125,24 @@ class ControlPanel(tk.Tk):
 
     # ------------------------------------------------ Aeonimus handoff (easy button)
 
-    def _build_easy_import(self, parent: tk.Misc, *, compact: bool = False) -> tk.Frame:
+    def _build_easy_import(self, parent: tk.Misc, *, compact: bool = False, dash: bool = False) -> tk.Frame:
+        if dash:
+            card, body = self._dcard(parent, border=D_ACCENT)
+            row = tk.Frame(body, bg=D_SURFACE)
+            row.pack(fill="x")
+            title = self._dlabel(row, "From the URL Lister", font=F_SECTION)
+            title.configure(width=24)
+            title.pack(side="left")
+            ttk.Button(row, text="Import from URL Lister", style="Dash.Primary.TButton", command=self._easy_import).pack(
+                side="left", padx=(8, 0))
+            ttk.Button(row, text="Open handoff folder", style="Dash.Secondary.TButton",
+                       command=self._open_handoff_folder).pack(side="left", padx=(8, 0))
+            lbl = tk.Label(body, textvariable=self.easy_status_var, fg=D_MUTED, bg=D_SURFACE, font=F_BODY,
+                           anchor="w", justify="left", wraplength=700)
+            lbl.pack(fill="x", pady=(8, 0))
+            self._autowrap(lbl)
+            self._easy_status_labels.append(lbl)
+            return card
         card = tk.Frame(parent, bg=BG_CARD, highlightthickness=1, highlightbackground=ACCENT)
         body = tk.Frame(card, bg=BG_CARD)
         body.pack(fill="x", padx=18, pady=10 if compact else 16)
@@ -1916,31 +2175,57 @@ class ControlPanel(tk.Tk):
             pass
         open_path(d)
 
-    def _build_latest_transcripts(self, panel: tk.Frame) -> None:
-        """Small 'Latest transcripts' list under the Add links panel: newest 5, double-click opens."""
-        box = tk.Frame(panel, bg=BG_CARD)
-        box.pack(fill="x", padx=18, pady=(0, 8))
-        head = tk.Frame(box, bg=BG_CARD)
-        head.pack(fill="x")
-        self._body_label(head, "LATEST TRANSCRIPTS", mono=True, fg=FG_DIM, size=9, bold=True).pack(side="left")
-        self._body_label(head, "double-click to open", fg=FG_DIM, size=8).pack(side="left", padx=(8, 0))
-        ttk.Button(head, text="Show in folder", command=self._show_latest_in_folder).pack(side="right")
-        ttk.Button(head, text="Open", command=self._open_latest_selected).pack(side="right", padx=(0, 6))
-        self.latest_list = tk.Listbox(
-            box, height=5, activestyle="none", bg=FIELD_BG, fg=FG, selectbackground=SECONDARY_CONTAINER,
-            selectforeground=FG, highlightthickness=1, highlightbackground=CARD_BORDER, relief="flat",
-            font=(FONT_BODY, 9),
-        )
-        self.latest_list.pack(fill="x", pady=(4, 0))
-        self.latest_list.bind("<Double-Button-1>", lambda _e: self._open_latest_selected())
+    def _build_latest_transcripts(self, parent: tk.Frame) -> None:
+        """Latest transcripts card body: newest 5 from the library, double-click opens, > shows in folder."""
+        tv = ttk.Treeview(parent, style="Latest.Treeview", show="tree", columns=("time", "chev"), height=5,
+                          selectmode="browse")
+        tv.column("#0", width=180, stretch=True, anchor="w")
+        tv.column("time", width=96, stretch=False, anchor="e")
+        tv.column("chev", width=20, stretch=False, anchor="center")
+        tv.tag_configure("hover", background=D_RAISED)
+        tv.tag_configure("empty", foreground=D_MUTED)
+        tv.pack(fill="x")
+        self.latest_list = tv
+        tv.bind("<Double-1>", lambda _e: self._open_latest_selected())
+        tv.bind("<ButtonRelease-1>", self._latest_click)
+        tv.bind("<Motion>", self._latest_hover)
+        tv.bind("<Leave>", lambda _e: [tv.item(i, tags=()) for i in tv.get_children() if "hover" in tv.item(i, "tags")])
+        menu = tk.Menu(tv, tearoff=False)
+        menu.add_command(label="Open", command=self._open_latest_selected)
+        menu.add_command(label="Show in folder", command=self._show_latest_in_folder)
+        menu.add_command(label="Open transcripts folder", command=self._open_library_transcripts)
+
+        def popup(e: tk.Event) -> None:
+            row = tv.identify_row(e.y)
+            if row:
+                tv.selection_set(row)
+            menu.tk_popup(e.x_root, e.y_root)
+
+        tv.bind("<Button-3>", popup)
         self._latest_paths: list[Path] = []
         self._latest_sig: tuple = ()
         self._latest_checked = 0.0
         self._refresh_latest_transcripts(force=True)
 
+    def _latest_hover(self, e: tk.Event) -> None:
+        tv = self.latest_list
+        row = tv.identify_row(e.y)
+        for i in tv.get_children():
+            tags = tv.item(i, "tags")
+            if i == row and "empty" not in tags and "hover" not in tags:
+                tv.item(i, tags=("hover",))
+            elif i != row and "hover" in tags:
+                tv.item(i, tags=())
+
+    def _latest_click(self, e: tk.Event) -> None:
+        tv = self.latest_list
+        if tv.identify_column(e.x) == "#2" and tv.identify_row(e.y):
+            tv.selection_set(tv.identify_row(e.y))
+            self._show_latest_in_folder()
+
     def _refresh_latest_transcripts(self, force: bool = False) -> None:
-        lb = getattr(self, "latest_list", None)
-        if lb is None:
+        tv = getattr(self, "latest_list", None)
+        if tv is None:
             return
         now = datetime.now().timestamp()
         if not force and now - self._latest_checked < 5.0:
@@ -1953,19 +2238,25 @@ class ControlPanel(tk.Tk):
         self._latest_sig = sig
         self._latest_paths = paths
         try:
-            lb.delete(0, "end")
+            tv.delete(*tv.get_children())
             if not paths:
-                lb.insert("end", "  No finished transcripts in the library yet.")
-            for p in paths:
-                lb.insert("end", "  " + aeonimus_handoff.describe_transcript(p))
+                tv.insert("", "end", iid="empty", text="No finished transcripts in the library yet.", values=("", ""),
+                          tags=("empty",))
+            for i, p in enumerate(paths):
+                ts = aeonimus_handoff.file_mtime(p)
+                when = datetime.fromtimestamp(ts).strftime("%b %d %H:%M") if ts else ""
+                tv.insert("", "end", iid=str(i), text=p.name, values=(when, "\u203a"))
         except tk.TclError:
             pass
 
     def _selected_latest(self) -> Path | None:
         if not getattr(self, "_latest_paths", None):
             return None
-        sel = self.latest_list.curselection()
-        idx = sel[0] if sel else 0
+        sel = self.latest_list.selection()
+        try:
+            idx = int(sel[0]) if sel else 0
+        except ValueError:
+            return None
         return self._latest_paths[idx] if idx < len(self._latest_paths) else None
 
     def _open_latest_selected(self) -> None:
@@ -2729,13 +3020,11 @@ class ControlPanel(tk.Tk):
         self.failed_bar["value"] = failed_count
         self.processed_bar["maximum"] = max_count
         self.processed_bar["value"] = processed_count
+        self._color_counts()
 
         can_stop = bool(running_flag and alive)
         can_start = not can_stop or stale_running
-        if can_stop:
-            self.power_btn.configure(text="Stop watcher", style="Danger.TButton")
-        else:
-            self.power_btn.configure(text="Start watcher", style="Accent.TButton")
+        self._set_dashboard_state(running=can_stop, stale=bool(stale_running))
         self.power_btn.state(["!disabled"] if (can_start or can_stop) else ["disabled"])
 
         recent_failure = last_event.startswith("failed:") or last_event.startswith("stalled:")
@@ -2756,7 +3045,11 @@ class ControlPanel(tk.Tk):
             self.banner_frame.configure(bg=bg)
             self.banner_label.configure(text=" · ".join(msg_parts), fg="#fff", bg=bg)
             if not self.banner_frame.winfo_ismapped():
-                self.banner_frame.pack(fill="x", pady=(0, 10))
+                first = self._dash_outer.pack_slaves()
+                if first:
+                    self.banner_frame.pack(in_=self._dash_outer, fill="x", pady=(0, 10), before=first[0])
+                else:
+                    self.banner_frame.pack(in_=self._dash_outer, fill="x", pady=(0, 10))
         elif self.banner_frame.winfo_ismapped():
             self.banner_frame.pack_forget()
 

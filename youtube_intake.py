@@ -676,18 +676,22 @@ def build_panel(parent, downloader: YouTubeDownloader, *, theme: dict, get_dirs:
 
     outer = tk.Frame(parent, bg=bg, highlightthickness=1, highlightbackground=border)
     inner = tk.Frame(outer, bg=bg)
-    inner.pack(fill="x", padx=18, pady=10 if compact else 18)
+    inner.pack(fill="x", padx=theme.get("pad", 18), pady=theme.get("pad_y", 10 if compact else 18))
 
     row = tk.Frame(inner, bg=bg)
     row.pack(fill="x")
-    tk.Label(row, text="Add YouTube / Suno links", fg=accent, bg=bg, font=(head_font, 13 if compact else 16, "bold")).pack(side="left")
+    title_font = theme.get("title_font", (head_font, 13 if compact else 16, "bold"))
+    title_lbl = tk.Label(row, text="Add YouTube / Suno links", fg=fg if "title_font" in theme else accent, bg=bg, font=title_font, anchor="w")
+    if "title_font" in theme:
+        title_lbl.configure(width=24)
+    title_lbl.pack(side="left")
     url_var = tk.StringVar()
     entry = tk.Entry(row, textvariable=url_var, bg=field_bg, fg=fg, insertbackground=fg, relief="flat",
-                     highlightthickness=1, highlightbackground=border, highlightcolor=accent, font=(body_font, 10))
-    entry.pack(side="left", fill="x", expand=True, padx=(14, 8), ipady=5)
+                     highlightthickness=1, highlightbackground=border, highlightcolor=accent, font=theme.get("entry_font", (body_font, 10)))
+    entry.pack(side="left", fill="x", expand=True, padx=(8, 8) if "pad" in theme else (14, 8), ipady=7 if "pad" in theme else 5)
     status_var = tk.StringVar(value="Paste a YouTube video, Shorts or playlist link, or a Suno song link, or load a CSV/TXT of links. Audio lands in the watch folder.")
     status_row = tk.Frame(inner, bg=bg)
-    status_lbl = tk.Label(status_row, textvariable=status_var, fg=dim, bg=bg, font=(body_font, 9), anchor="w", justify="left", wraplength=600)
+    status_lbl = tk.Label(status_row, textvariable=status_var, fg=dim, bg=bg, font=theme.get("status_font", (body_font, 9)), anchor="w", justify="left", wraplength=600)
     status_lbl.bind("<Configure>", lambda e: status_lbl.configure(wraplength=max(200, e.width - 8)), add="+")
     progress_var = tk.StringVar(value="")
     bar = ttk.Progressbar(inner, orient="horizontal", mode="determinate", maximum=100)
@@ -741,18 +745,20 @@ def build_panel(parent, downloader: YouTubeDownloader, *, theme: dict, get_dirs:
             return
         queue(result)
 
-    btn_style = "Accent.TButton"
+    btn_style = theme.get("primary_style", "Accent.TButton")
+    sec = {"style": theme["secondary_style"]} if "secondary_style" in theme else {}
     ttk.Button(row, text="Add link", style=btn_style, command=add_pasted).pack(side="left")
-    ttk.Button(row, text="Load CSV / TXT", command=load_file).pack(side="left", padx=(8, 0))
-    cancel_btn = ttk.Button(row, text="Stop downloads", command=downloader.cancel)
+    ttk.Button(row, text="Load CSV / TXT", command=load_file, **sec).pack(side="left", padx=(8, 0))
+    cancel_btn = ttk.Button(row, text="Stop downloads", command=downloader.cancel, **sec)
     entry.bind("<Return>", add_pasted)
 
     prog_row = tk.Frame(inner, bg=bg)
-    prog_lbl = tk.Label(prog_row, textvariable=progress_var, fg=fg, bg=bg, font=(mono_font, 9), anchor="w")
+    prog_lbl = tk.Label(prog_row, textvariable=progress_var, fg=fg, bg=bg, font=theme.get("progress_font", (mono_font, 9)), anchor="w")
     if on_open_transcripts is not None:
-        ttk.Button(status_row, text="Open transcripts", command=on_open_transcripts).pack(side="right", padx=(8, 0))
+        ttk.Button(status_row, text="Open transcripts", command=on_open_transcripts,
+                   style=theme.get("primary_style", "TButton") if "pad" in theme else "TButton").pack(side="right", padx=(12, 0))
     status_lbl.pack(side="left", fill="x", expand=True)
-    status_row.pack(fill="x", pady=(6, 0))
+    status_row.pack(fill="x", pady=(8, 0))
     prog_row.pack(fill="x")
 
     state = {"shown": False, "last_err": 0}
