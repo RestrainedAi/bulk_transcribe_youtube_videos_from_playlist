@@ -657,7 +657,7 @@ def summary_line(s: dict) -> str:
 # ---------------------------------------------------------------- Tk panel
 
 def build_panel(parent, downloader: YouTubeDownloader, *, theme: dict, get_dirs: Callable[[], tuple[Path, list[Path]]],
-                compact: bool = False):
+                compact: bool = False, on_open_transcripts: Callable[[], None] | None = None):
     """Build the 'Add YouTube links' card inside parent. Returns the outer frame (already packed by caller)."""
     import tkinter as tk
     from tkinter import filedialog, ttk
@@ -686,7 +686,9 @@ def build_panel(parent, downloader: YouTubeDownloader, *, theme: dict, get_dirs:
                      highlightthickness=1, highlightbackground=border, highlightcolor=accent, font=(body_font, 10))
     entry.pack(side="left", fill="x", expand=True, padx=(14, 8), ipady=5)
     status_var = tk.StringVar(value="Paste a YouTube video, Shorts or playlist link, or a Suno song link, or load a CSV/TXT of links. Audio lands in the watch folder.")
-    status_lbl = tk.Label(inner, textvariable=status_var, fg=dim, bg=bg, font=(body_font, 9), anchor="w", justify="left", wraplength=900)
+    status_row = tk.Frame(inner, bg=bg)
+    status_lbl = tk.Label(status_row, textvariable=status_var, fg=dim, bg=bg, font=(body_font, 9), anchor="w", justify="left", wraplength=600)
+    status_lbl.bind("<Configure>", lambda e: status_lbl.configure(wraplength=max(200, e.width - 8)), add="+")
     progress_var = tk.StringVar(value="")
     bar = ttk.Progressbar(inner, orient="horizontal", mode="determinate", maximum=100)
 
@@ -747,7 +749,10 @@ def build_panel(parent, downloader: YouTubeDownloader, *, theme: dict, get_dirs:
 
     prog_row = tk.Frame(inner, bg=bg)
     prog_lbl = tk.Label(prog_row, textvariable=progress_var, fg=fg, bg=bg, font=(mono_font, 9), anchor="w")
-    status_lbl.pack(fill="x", pady=(6, 0))
+    if on_open_transcripts is not None:
+        ttk.Button(status_row, text="Open transcripts", command=on_open_transcripts).pack(side="right", padx=(8, 0))
+    status_lbl.pack(side="left", fill="x", expand=True)
+    status_row.pack(fill="x", pady=(6, 0))
     prog_row.pack(fill="x")
 
     state = {"shown": False, "last_err": 0}

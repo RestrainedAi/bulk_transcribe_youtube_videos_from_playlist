@@ -2,6 +2,20 @@
 
 All notable changes to the Transcription Workbench.
 
+## 1.2.1 (2026-10-17)
+
+- Dashboard fits at about 1000x1024: compact control bar across the top (Start/Stop
+  watcher, Refresh now, Auto-refresh), one-row stat strip (Queue, Completed, Failed,
+  Processed, Segment), tighter status, counters and quick-action cards
+- Every page scrolls when the window is smaller than its content (scrollbar and
+  mouse wheel); the window opens sized to the screen and can be made smaller
+- **Open transcripts** button in the Add YouTube / Suno links panel opens the
+  library's `transcripts` folder
+- **Latest transcripts** list: newest 5 finished transcripts with time;
+  double-click (or Open) opens the .txt, **Show in folder** selects it in Explorer
+- Fixed: the Health field on the Dashboard was hidden behind Last error
+- Fixed: the help window's mouse wheel no longer breaks scrolling in the main window
+
 ## 1.2.0 (2026-10-17)
 
 - **Import from URL Lister** easy button: moves the newest URL Lister export
