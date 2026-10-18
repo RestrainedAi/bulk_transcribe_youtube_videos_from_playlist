@@ -115,9 +115,24 @@ def _summarize_openai(
 
 
 def _anthropic_summarize(api_key: str, user_text: str, system_prompt: str) -> str:
+    model = "claude-haiku-4-5"
+    try:
+        import anthropic  # noqa: PLC0415
+
+        client = anthropic.Anthropic(api_key=api_key)
+        msg = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_text[:120000]}],
+        )
+        texts = [block.text for block in msg.content if getattr(block, "type", "") == "text"]
+        return "\n".join(texts).strip()
+    except ImportError:
+        pass
     body = json.dumps(
         {
-            "model": "claude-3-5-haiku-20241022",
+            "model": model,
             "max_tokens": 4096,
             "system": system_prompt,
             "messages": [{"role": "user", "content": user_text[:120000]}],

@@ -1,10 +1,11 @@
 import argparse
 import asyncio
-import json
 import os
+import sys
 import time
 
 import bulk_transcribe_youtube_videos_from_playlist as bt
+from safe_io import atomic_write_json
 
 
 def utc_now() -> str:
@@ -12,11 +13,17 @@ def utc_now() -> str:
 
 
 def write_progress(progress_path: str, payload: dict) -> None:
-    with open(progress_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+    payload["worker_pid"] = os.getpid()
+    payload["updated_at"] = utc_now()
+    atomic_write_json(progress_path, payload)
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(description="Transcribe one local video file.")
     parser.add_argument("--input", required=True, help="Path to local video/audio file")
     parser.add_argument("--stem", required=True, help="Output filename stem")
@@ -31,8 +38,10 @@ def main() -> int:
     progress = {
         "input": input_path,
         "stem": stem,
+        "worker_pid": os.getpid(),
         "status": "starting",
         "started_at": utc_now(),
+        "updated_at": utc_now(),
         "last_progress_at": None,
         "last_segment_end": 0.0,
         "last_segment_text": None,
@@ -47,7 +56,7 @@ def main() -> int:
         write_progress(progress_path, progress)
 
     try:
-        asyncio.run(
+        transcript_text, transcript_segments, _sentences = asyncio.run(
             bt.compute_transcript_with_whisper_from_audio_func(
                 input_path,
                 stem,
@@ -55,6 +64,13 @@ def main() -> int:
                 progress_callback=on_progress,
             )
         )
+        txt_path = os.path.join(bt.COMPLETED_TRANSCRIPTS_DIR, f"{stem}.txt")
+        csv_path = os.path.join(bt.COMPLETED_CSV_DIR, f"{stem}.csv")
+        json_path = os.path.join(bt.COMPLETED_JSON_DIR, f"{stem}.json")
+        if not transcript_text.strip() or not transcript_segments:
+            raise RuntimeError("transcription_returned_no_segments")
+        if not (os.path.isfile(txt_path) and os.path.isfile(csv_path) and os.path.isfile(json_path)):
+            raise RuntimeError("transcription_outputs_missing")
     except Exception as exc:
         progress["status"] = "failed"
         progress["error"] = f"{type(exc).__name__}: {exc}"

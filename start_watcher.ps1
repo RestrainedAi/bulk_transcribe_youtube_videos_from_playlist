@@ -5,6 +5,10 @@ param(
 )
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$wingetLinks = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Links"
+if ((Test-Path (Join-Path $wingetLinks "ffmpeg.exe")) -and ($env:Path -notlike "*$wingetLinks*")) {
+  $env:Path = "$wingetLinks;$env:Path"
+}
 $python = Join-Path $root "venv\Scripts\python.exe"
 if (!(Test-Path $python)) {
   Write-Error "Python venv not found at $python"

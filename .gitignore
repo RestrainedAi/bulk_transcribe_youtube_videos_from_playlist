@@ -165,17 +165,78 @@ cython_debug/
 # Local watcher UI settings (may contain API keys)
 watcher_settings.json
 
-#ignore .bin model files and .sqlite files
+# ============================================================
+# NEVER UPLOAD — media, transcripts, and runtime data
+# These directories contain user content and are NEVER committed
+# to git or uploaded to any remote except a designated backup.
+# ============================================================
+
+# Output directories — all user-generated content
+completed_videos/
+completed_audio/
+completed_transcripts/
+completed_csv/
+completed_json/
+
+# Watch folder — incoming media and runtime state
+watch_incoming/
+watch_incoming_staging/
+
+# Legacy output paths (pre-unification)
+generated_transcript_metadata_tables/
+generated_transcript_combined_texts/
+downloaded_audio/
+youtube_captions_exports/
+
+# Runtime lock / progress files anywhere in the tree
+.watcher.lock/
+.watch_progress_*.json
+whisper_live.log
+watch_events.log
+watch_status.json
+watch_resource.jsonl
+staged_for_notebooklm/
+
+# Media files — belt-and-suspenders catch-all
+*.mp4
+*.mkv
+*.mov
+*.webm
+*.avi
+*.m4v
+*.mp3
+*.m4a
+*.wav
+*.flac
+*.ogg
+*.wma
+*.wmv
+*.mpeg
+*.mpg
+*.flv
+
+# Model / large binary files
 *.bin
+*.gguf
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
 *.sqlite-journal
-*.gguf
-folder_of_source_documents__original_format
-folder_of_source_documents__converted_to_plaintext
 *.zip
-generated_transcript_metadata_tables
-generated_transcript_combined_texts
-downloaded_audio
-youtube_captions_exports
+
+# Legacy folder names
+folder_of_source_documents__original_format/
+folder_of_source_documents__converted_to_plaintext/
+transcript_index.sqlite*
+skipped_duplicates/
+
+# Local-only: backups, archives, extra venvs, editor settings (2026-10-17 snapshot)
+*.bak
+*.bak_*
+.archive/
+venv_*/
+venv_old_freeze.txt
+.cursor/
+.vscode/
+logs/
+*.log

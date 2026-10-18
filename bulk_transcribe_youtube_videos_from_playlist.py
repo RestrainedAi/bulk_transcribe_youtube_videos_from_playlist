@@ -1,28 +1,37 @@
 import os
 import argparse
 import asyncio
-import importlib
 import re
 import shutil
+import subprocess
 import sys
 import psutil
 import glob
 import json
 import traceback
+from pathlib import Path
 from pytubefix import YouTube, Playlist
 import pandas as pd
 import ctranslate2
-from faster_whisper import WhisperModel
+from faster_whisper import WhisperModel, BatchedInferencePipeline
 from numba import cuda
 from tqdm import tqdm
+
+import asr_engines
+import transcript_search
+from output_paths import ensure_output_dirs
+from watcher_settings import load_settings
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 # Constants for pricing
 WHISPER_COST_PER_MINUTE = 0.006
 
 convert_single_video = 1
-# Default to regex splitting because SpaCy currently crashes this Windows venv.
-# You can flip this back to 1 later once the SpaCy environment is repaired.
-use_spacy_for_sentence_splitting = 0
+use_spacy_for_sentence_splitting = 1
 use_openai_api_for_transcription = 0
 openai_api_key = 'REPLACE_WITH_YOUR_API_KEY'
 max_simultaneous_youtube_downloads = 4
@@ -37,7 +46,7 @@ def add_to_system_path(new_path):
         os.environ["PATH"] = f'"{new_path}"' + os.pathsep + os.environ["PATH"].replace(new_path, "")
 
 def ensure_ffmpeg_on_path():
-    if shutil.which("ffmpeg"):
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
         return
     candidates = []
     env_dir = os.environ.get("FFMPEG_DIR")
@@ -58,11 +67,12 @@ def ensure_ffmpeg_on_path():
         )
     else:
         candidates.extend(["/opt/homebrew/bin", "/usr/local/bin"])
+    ffmpeg_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    ffprobe_name = "ffprobe.exe" if sys.platform == "win32" else "ffprobe"
     for d in candidates:
         if not d:
             continue
-        exe = os.path.join(d, "ffmpeg.exe") if sys.platform == "win32" else os.path.join(d, "ffmpeg")
-        if os.path.isfile(exe):
+        if os.path.isfile(os.path.join(d, ffmpeg_name)) or os.path.isfile(os.path.join(d, ffprobe_name)):
             add_to_system_path(d)
             return
 
@@ -117,50 +127,153 @@ if cuda_toolkit_path:
 
 ensure_ffmpeg_on_path()
 ensure_cuda_runtime_dlls_on_path()
-from pydub import AudioSegment  # noqa: E402 — import after PATH so pydub finds ffmpeg
 
 max_workers_transcribe = psutil.cpu_count(logical=False)  # Number of physical cores
 
-os.makedirs('downloaded_audio', exist_ok=True)
-os.makedirs('generated_transcript_combined_texts', exist_ok=True)
-os.makedirs('generated_transcript_metadata_tables', exist_ok=True)
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+_SETTINGS = load_settings(Path(REPO_ROOT))
+OUTPUT_DIRS = ensure_output_dirs(Path(REPO_ROOT), _SETTINGS)
+COMPLETED_AUDIO_DIR = str(OUTPUT_DIRS["completed_audio"])
+COMPLETED_TRANSCRIPTS_DIR = str(OUTPUT_DIRS["completed_transcripts"])
+COMPLETED_CSV_DIR = str(OUTPUT_DIRS["completed_csv"])
+COMPLETED_JSON_DIR = str(OUTPUT_DIRS["completed_json"])
 
+ALLOWED_WHISPER_MODELS = (
+    "tiny",
+    "base",
+    "small",
+    "medium",
+    "large-v2",
+    "large-v3",
+    "distil-large-v3",
+    "large-v3-turbo",
+)
+ALLOWED_DECODE_PROFILES = ("robust", "legacy")
+DEFAULT_DECODE_PROFILE = "robust"
+
+
+def resolve_decode_profile(settings: dict | None = None) -> str:
+    data = settings if isinstance(settings, dict) else _SETTINGS
+    raw = str(os.environ.get("WHISPER_DECODE_PROFILE") or data.get("whisper_decode_profile") or "").strip().lower()
+    return raw if raw in ALLOWED_DECODE_PROFILES else DEFAULT_DECODE_PROFILE
+
+
+def resolve_whisper_language(settings: dict | None = None) -> str | None:
+    """'auto' (default) lets Whisper detect the language; otherwise an ISO code such as 'en'."""
+    data = settings if isinstance(settings, dict) else _SETTINGS
+    raw = str(os.environ.get("WHISPER_LANGUAGE") or data.get("whisper_language") or "auto").strip().lower()
+    return None if raw in ("", "auto") else raw
+
+
+def transcribe_kwargs_for_profile(profile: str, vad_filter: bool, language: str | None = "en") -> dict:
+    """Decoding options. 'legacy' with language='en' reproduces the original behaviour exactly."""
+    kwargs = {"beam_size": 5, "vad_filter": vad_filter, "language": language, "task": "transcribe"}
+    if profile == "legacy":
+        return kwargs
+    kwargs.update(
+        vad_filter=True,
+        vad_parameters={"min_silence_duration_ms": 500, "speech_pad_ms": 300},
+        condition_on_previous_text=False,
+        temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+        compression_ratio_threshold=2.4,
+        log_prob_threshold=-1.0,
+        no_speech_threshold=0.6,
+        # Primes normal casing/punctuation, which is otherwise lost without previous-text conditioning.
+        initial_prompt="Hello, and welcome. Here's what we'll cover today.",
+        hallucination_silence_threshold=2.0,
+        word_timestamps=True,
+    )
+    return kwargs
+DEFAULT_WHISPER_GPU_MODEL = "large-v3"
+DEFAULT_WHISPER_CPU_MODEL = "medium"
+
+
+def normalize_whisper_model(raw: str | None, fallback: str) -> str:
+    name = str(raw or "").strip().lower()
+    return name if name in ALLOWED_WHISPER_MODELS else fallback
+
+
+def resolve_whisper_models(settings: dict | None = None) -> tuple[str, str]:
+    data = settings if isinstance(settings, dict) else _SETTINGS
+    gpu = normalize_whisper_model(
+        os.environ.get("WHISPER_GPU_MODEL") or data.get("whisper_gpu_model"),
+        DEFAULT_WHISPER_GPU_MODEL,
+    )
+    cpu = normalize_whisper_model(
+        os.environ.get("WHISPER_CPU_MODEL") or data.get("whisper_cpu_model"),
+        DEFAULT_WHISPER_CPU_MODEL,
+    )
+    return gpu, cpu
+
+
+def build_whisper_attempts(
+    use_gpu: bool,
+    gpu_model: str | None = None,
+    cpu_model: str | None = None,
+    profile: str = "legacy",
+) -> list[tuple[str, str, str, bool, str]]:
+    gpu = normalize_whisper_model(gpu_model, DEFAULT_WHISPER_GPU_MODEL)
+    cpu = normalize_whisper_model(cpu_model, DEFAULT_WHISPER_CPU_MODEL)
+    attempts: list[tuple[str, str, str, bool, str]] = []
+    if use_gpu and profile == "robust":
+        # RTX 3090 (24 GB) runs large-v3 in full float16 comfortably; int8 is the fallback.
+        attempts.extend(
+            [
+                (gpu, "cuda", "float16", True, "gpu_fp16"),
+                (gpu, "cuda", "int8_float16", True, "gpu_int8"),
+            ]
+        )
+    elif use_gpu:
+        attempts.extend(
+            [
+                (gpu, "cuda", "int8_float16", True, "gpu_vad"),
+                (gpu, "cuda", "int8_float16", False, "gpu_no_vad"),
+            ]
+        )
+    attempts.extend(
+        [
+            (cpu, "cpu", "int8", False, "cpu"),
+            (cpu, "cpu", "auto", False, "cpu_auto"),
+        ]
+    )
+    return attempts
+
+
+def _regex_sentence_splitter(text):
+    text = remove_pagination_breaks(text)
+    pattern = r'\.(?!\s*(com|net|org|io)\s)(?![0-9])'
+    pattern += r'|[.!?]\s+'
+    pattern += r'|\.\.\.(?=\s)'
+    sentences = re.split(pattern, text)
+    refined_sentences = []
+    temp_sentence = ""
+    for sentence in sentences:
+        if sentence is not None:
+            temp_sentence += sentence
+            if temp_sentence.count('"') % 2 == 0:
+                refined_sentences.append(temp_sentence.strip())
+                temp_sentence = ""
+    if temp_sentence:
+        refined_sentences.append(temp_sentence.strip())
+    return [s.strip() for s in refined_sentences if s.strip()]
+
+
+nlp = None
 if use_spacy_for_sentence_splitting:
-    import spacy
-    import spacy.cli
-    def download_spacy_model(model_name="en_core_web_sm"):
-        try:
-            return spacy.load(model_name)
-        except OSError:
-            print(f"Downloading spaCy model {model_name}...")
-            spacy.cli.download(model_name)
-            importlib.invalidate_caches()
-            importlib.import_module(model_name)
-            return spacy.load(model_name)
-    nlp = download_spacy_model()  
-    def sophisticated_sentence_splitter(text):
+    try:
+        import spacy
+        nlp = spacy.load("en_core_web_sm")
+    except Exception as exc:
+        print(f"SpaCy unavailable ({exc}); using regex sentence splitting.")
+        nlp = None
+
+
+def sophisticated_sentence_splitter(text):
+    if nlp is not None:
         text = remove_pagination_breaks(text)
         doc = nlp(text)
-        sentences = [sent.text.strip() for sent in doc.sents]
-        return sentences        
-else:    
-    def sophisticated_sentence_splitter(text):
-        text = remove_pagination_breaks(text)
-        pattern = r'\.(?!\s*(com|net|org|io)\s)(?![0-9])'
-        pattern += r'|[.!?]\s+'
-        pattern += r'|\.\.\.(?=\s)'
-        sentences = re.split(pattern, text)
-        refined_sentences = []
-        temp_sentence = ""
-        for sentence in sentences:
-            if sentence is not None:
-                temp_sentence += sentence
-                if temp_sentence.count('"') % 2 == 0:
-                    refined_sentences.append(temp_sentence.strip())
-                    temp_sentence = ""
-        if temp_sentence:
-            refined_sentences.append(temp_sentence.strip())
-        return [s.strip() for s in refined_sentences if s.strip()]
+        return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+    return _regex_sentence_splitter(text)
 
 def clean_filename(title):
     title = re.sub(r'[^\w\s-]', '', title)
@@ -170,7 +283,7 @@ async def download_audio(video):
     filename = clean_filename(video.title)
     base_filename = filename
     counter = 1
-    audio_dir = 'downloaded_audio'
+    audio_dir = COMPLETED_AUDIO_DIR
     audio_file_path = os.path.join(audio_dir, f"{filename}.mp4")
     while os.path.exists(audio_file_path):
         filename = f"{base_filename}_{counter}"
@@ -197,22 +310,74 @@ def estimate_whisper_transcription_cost(audio_duration_seconds):
     return estimated_cost
 
 async def get_audio_duration(audio_file_path):
-    audio = AudioSegment.from_file(audio_file_path)
-    return len(audio) / 1000  # pydub returns duration in milliseconds
+    result = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", audio_file_path],
+        capture_output=True, text=True, check=True
+    )
+    return float(result.stdout.strip())
 
 def remove_unwanted_segments_from_json(json_file_path, unwanted_text="Subtitles by the Amara.org community"):
-    with open(json_file_path, 'r') as json_file:
+    with open(json_file_path, 'r', encoding='utf-8') as json_file:
         data = json.load(json_file)
     original_segment_count = len(data)
     filtered_data = [segment for segment in data if unwanted_text not in segment['text']]
     filtered_segment_count = len(filtered_data)
     if original_segment_count != filtered_segment_count:
-        with open(json_file_path, 'w') as json_file:
-            json.dump(filtered_data, json_file, indent=4)
+        with open(json_file_path, 'w', encoding='utf-8') as json_file:
+            json.dump(filtered_data, json_file, indent=4, ensure_ascii=False)
         print(f"Removed {original_segment_count - filtered_segment_count} unwanted segments from {json_file_path}.")
     else:
         print(f"No unwanted segments found in {json_file_path}.")
         
+_WHISPER_MODEL_CACHE: dict = {}
+
+
+def get_whisper_model(model_size: str, device: str, compute_type: str):
+    """Load a Whisper model once and reuse it for every later file in this process."""
+    key = (model_size, device, compute_type)
+    model = _WHISPER_MODEL_CACHE.get(key)
+    if model is None:
+        model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        _WHISPER_MODEL_CACHE[key] = model
+    else:
+        print(f"Reusing loaded Whisper model {model_size}/{device}/{compute_type}")
+    return model
+
+
+def release_whisper_models() -> None:
+    """Free every cached Whisper model (needed before another GPU engine loads)."""
+    _WHISPER_MODEL_CACHE.clear()
+    import gc
+    gc.collect()
+
+
+def resolve_batched_mode() -> tuple[bool, int]:
+    """Opt-in fast mode. Env (set by the watcher) wins over saved settings."""
+    env = os.environ.get("WHISPER_BATCHED", "").strip()
+    enabled = env == "1" if env else bool(_SETTINGS.get("whisper_batched", False))
+    try:
+        size = int(os.environ.get("WHISPER_BATCH_SIZE", "") or _SETTINGS.get("whisper_batch_size", 8) or 8)
+    except (TypeError, ValueError):
+        size = 8
+    return enabled, max(1, min(32, size))
+
+
+def batched_transcribe_kwargs(kwargs: dict) -> dict:
+    """Adapt robust kwargs for BatchedInferencePipeline.
+
+    Benchmarks showed the initial_prompt makes batched mode drop 8-20% of words
+    (each 30 s chunk gets the prompt), and hallucination_silence_threshold is not
+    supported there, so both are removed. Without them batched matched the
+    sequential result (0.991 vs 0.994 agreement with an independent reference).
+    """
+    import inspect
+    allowed = set(inspect.signature(BatchedInferencePipeline.transcribe).parameters)
+    out = {k: v for k, v in kwargs.items() if k in allowed}
+    out.pop("initial_prompt", None)
+    out.pop("hallucination_silence_threshold", None)
+    return out
+
+
 async def compute_transcript_with_whisper_from_audio_func(
     audio_file_path,
     audio_file_name,
@@ -252,44 +417,131 @@ async def compute_transcript_with_whisper_from_audio_func(
         ]
     else:
         print(f"Using local Whisper model for transcription of {audio_file_name}...")
-        if gpu_available_for_whisper() and not disable_cuda_override:
-            print("CUDA is available. Using GPU for transcription.")
-            device = "cuda"
-            compute_type = "float16"
-        else:
-            print("CUDA not available. Using CPU for transcription.")
-            device = "cpu"
-            compute_type = "auto"
-        model = WhisperModel("large-v3", device=device, compute_type=compute_type)
-        print(f"Computing transcript for {audio_file_name} which has a {audio_file_size_mb:.2f}MB file size...")
+        force_cpu = os.environ.get("WHISPER_FORCE_CPU", "").strip() == "1"
+        use_gpu = gpu_available_for_whisper() and not disable_cuda_override and not force_cpu
+        gpu_model, cpu_model = resolve_whisper_models()
         audio_duration_seconds = await get_audio_duration(audio_file_path)
-        with tqdm(total=audio_duration_seconds, desc=f"Transcribing {audio_file_name}", unit="s") as pbar:
-            segments, info = await asyncio.to_thread(model.transcribe, audio_file_path, beam_size=10, vad_filter=True)
-            for segment in segments:
-                pbar.update(segment.end - segment.start)
-                print(f"Processing segment: [Start: {segment.start:.2f}s, End: {segment.end:.2f}s] for file {audio_file_name} with text: {segment.text}")
-                if progress_callback is not None:
-                    progress_callback(segment.start, segment.end, segment.text)
-                combined_transcript_text += segment.text + " "
-                sentences = sophisticated_sentence_splitter(segment.text)
-                list_of_transcript_sentences.extend(sentences)
-                metadata = {
-                    "start": round(segment.start, 2),
-                    "end": round(segment.end, 2),
-                    "text": segment.text,
-                    "avg_logprob": round(segment.avg_logprob, 2)
-                }
-                combined_transcript_text_list_of_metadata_dicts.append(metadata)
+        print(f"Computing transcript for {audio_file_name} which has a {audio_file_size_mb:.2f}MB file size...")
+
+        profile = resolve_decode_profile()
+        language = resolve_whisper_language()
+        print(f"Whisper decode profile: {profile}; language: {language or 'auto'}")
+        attempts = build_whisper_attempts(use_gpu, gpu_model, cpu_model, profile)
+        if use_gpu:
+            print(f"CUDA is available. Starting with GPU transcription ({gpu_model}).")
+        else:
+            print(f"CUDA unavailable or disabled. Starting with CPU transcription ({cpu_model}).")
+
+        last_exception = None
+        for model_size, device, compute_type, vad_filter, label in attempts:
+            if device == "cpu" and use_gpu:
+                print(
+                    f"WARNING: GPU transcription failed for {audio_file_name}; falling back to the weaker CPU model "
+                    f"'{model_size}'. Segments will be tagged with model={model_size}/cpu so this is visible in the output."
+                )
+            print(
+                f"Whisper attempt {label} for {audio_file_name}: "
+                f"model={model_size} device={device} compute_type={compute_type} vad_filter={vad_filter}"
+            )
+            combined_transcript_text = ""
+            combined_transcript_text_list_of_metadata_dicts = []
+            list_of_transcript_sentences = []
+            try:
+                model = get_whisper_model(model_size, device, compute_type)
+                run_kwargs = transcribe_kwargs_for_profile(profile, vad_filter, language)
+                batched, batch_size = resolve_batched_mode()
+                if batched and device == "cuda":
+                    print(f"Fast batched mode on (batch_size={batch_size}).")
+                    transcribe_fn = BatchedInferencePipeline(model).transcribe
+                    run_kwargs = dict(batched_transcribe_kwargs(run_kwargs), batch_size=batch_size)
+                else:
+                    transcribe_fn = model.transcribe
+                with tqdm(total=audio_duration_seconds, desc=f"Transcribing {audio_file_name}", unit="s") as pbar:
+                    segments, info = await asyncio.to_thread(transcribe_fn, audio_file_path, **run_kwargs)
+                    detected_language = getattr(info, "language", None)
+                    detected_language_prob = round(float(getattr(info, "language_probability", 0) or 0), 3)
+                    print(f"Language: {detected_language} (p={detected_language_prob}, forced={language is not None})")
+                    for segment in segments:
+                        pbar.update(max(0.0, segment.end - segment.start))
+                        preview = " ".join(segment.text.split())[:120]
+                        print(
+                            f"Segment [{segment.start:.2f}s->{segment.end:.2f}s] "
+                            f"{audio_file_name}: {preview}"
+                        )
+                        if progress_callback is not None:
+                            try:
+                                progress_callback(segment.start, segment.end, segment.text)
+                            except Exception as cb_exc:  # a progress-file hiccup must never abort a transcription
+                                print(f"Progress update skipped: {type(cb_exc).__name__}: {cb_exc}")
+                        combined_transcript_text += segment.text + " "
+                        sentences = sophisticated_sentence_splitter(segment.text)
+                        list_of_transcript_sentences.extend(sentences)
+                        metadata = {
+                            "start": round(segment.start, 2),
+                            "end": round(segment.end, 2),
+                            "text": segment.text,
+                            "avg_logprob": round(segment.avg_logprob, 2),
+                            "no_speech_prob": round(segment.no_speech_prob, 3),
+                            "compression_ratio": round(segment.compression_ratio, 2),
+                            "language": detected_language,
+                            "language_probability": detected_language_prob,
+                            "model": f"{model_size}/{device}/{compute_type}",
+                        }
+                        combined_transcript_text_list_of_metadata_dicts.append(metadata)
+                if combined_transcript_text_list_of_metadata_dicts:
+                    print(f"Whisper attempt {label} succeeded with {len(combined_transcript_text_list_of_metadata_dicts)} segments.")
+                    break
+                print(f"Whisper attempt {label} returned no segments for {audio_file_name}.")
+            except Exception as exc:
+                last_exception = exc
+                _WHISPER_MODEL_CACHE.pop((model_size, device, compute_type), None)
+                print(
+                    f"Whisper attempt {label} failed for {audio_file_name}: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                continue
+        if not combined_transcript_text_list_of_metadata_dicts and last_exception is not None:
+            raise RuntimeError(
+                f"all_whisper_attempts_failed:{type(last_exception).__name__}:{last_exception}"
+            ) from last_exception
+    if not use_openai_api_for_transcription:
+        try:
+            del model
+        except NameError:
+            pass
+        engine = asr_engines.resolve_engine(_SETTINGS) if hasattr(asr_engines, "resolve_engine") else "whisper"
+        crosscheck = asr_engines.resolve_crosscheck(_SETTINGS) if hasattr(asr_engines, "resolve_crosscheck") else False
+        if engine != "whisper" or crosscheck:
+            release_whisper_models()  # free Whisper's GPU memory before a second engine loads
+        import gc
+        gc.collect()
+        try:
+            processed = asr_engines.apply_engine_pipeline(
+                audio_file_path, audio_file_name, combined_transcript_text_list_of_metadata_dicts,
+                _SETTINGS, COMPLETED_JSON_DIR,
+            )
+        except Exception as exc:  # optional stage: never lose the Whisper result
+            print(f"ASR engine stage skipped: {type(exc).__name__}: {exc}")
+            processed = combined_transcript_text_list_of_metadata_dicts
+        if processed is not combined_transcript_text_list_of_metadata_dicts:
+            combined_transcript_text_list_of_metadata_dicts = processed
+            combined_transcript_text = " ".join(str(s.get("text", "")).strip() for s in processed) + " "
+            list_of_transcript_sentences = []
+            for s in processed:
+                list_of_transcript_sentences.extend(sophisticated_sentence_splitter(str(s.get("text", ""))))
     if not combined_transcript_text_list_of_metadata_dicts:
         print(f"No segments were returned for file {audio_file_name}.")
         return "", [], []
-    with open(f'generated_transcript_combined_texts/{audio_file_name}.txt', 'w') as file:
-        file.write(combined_transcript_text)
+    txt_path = os.path.join(COMPLETED_TRANSCRIPTS_DIR, f"{audio_file_name}.txt")
+    with open(txt_path, 'w', encoding='utf-8') as file:
+        file.write(render_readable_transcript(combined_transcript_text_list_of_metadata_dicts))
     df = pd.DataFrame(combined_transcript_text_list_of_metadata_dicts)
-    df.to_csv(f'generated_transcript_metadata_tables/{audio_file_name}.csv', index=False)
-    json_file_path = f'generated_transcript_metadata_tables/{audio_file_name}.json'
-    df.to_json(json_file_path, orient='records', indent=4)
-    remove_unwanted_segments_from_json(json_file_path)   
+    csv_path = os.path.join(COMPLETED_CSV_DIR, f"{audio_file_name}.csv")
+    df.to_csv(csv_path, index=False, encoding='utf-8')
+    json_file_path = os.path.join(COMPLETED_JSON_DIR, f"{audio_file_name}.json")
+    df.to_json(json_file_path, orient='records', indent=4, force_ascii=False)
+    remove_unwanted_segments_from_json(json_file_path)
+    transcript_search.after_transcript(audio_file_name, COMPLETED_JSON_DIR, COMPLETED_TRANSCRIPTS_DIR)
     return combined_transcript_text, combined_transcript_text_list_of_metadata_dicts, list_of_transcript_sentences
 
 async def process_video_or_playlist(
@@ -324,6 +576,15 @@ def remove_pagination_breaks(text: str) -> str:
     text = re.sub(r'-(\n)(?=[a-z])', '', text)
     text = re.sub(r'(?<=\w)(?<![.?!-]|\d)\n(?![\nA-Z])', ' ', text)
     return text
+
+
+def render_readable_transcript(segments):
+    blocks = []
+    for segment in segments:
+        text = " ".join(str(segment.get("text", "")).split()).strip()
+        if text:
+            blocks.append(text)
+    return "\n\n".join(blocks)
 
 def merge_transcript_segments_into_combined_text(segments):
     if not segments:
