@@ -171,13 +171,62 @@ def age_label(iso_utc: object) -> str:
     return f"{seconds // 3600}h {(seconds % 3600) // 60}m ago"
 
 
+class ScrollablePage(tk.Frame):
+    """A page that scrolls vertically when its content is taller than the window.
+
+    Content goes in ``.inner``. When everything fits, the inner frame is stretched to the
+    window height so pages with expanding text areas still fill the space.
+    """
+
+    SELF_SCROLLING = {"Text", "Listbox", "Treeview", "Canvas", "TCombobox", "Spinbox", "TSpinbox"}
+
+    def __init__(self, master: tk.Misc, *, bg: str) -> None:
+        super().__init__(master, bg=bg)
+        self.canvas = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0)
+        self.vbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.vbar.set)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.vbar.grid(row=0, column=1, sticky="ns")
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        self.inner = tk.Frame(self.canvas, bg=bg)
+        self._win = self.canvas.create_window(0, 0, window=self.inner, anchor="nw")
+        self.inner.bind("<Configure>", self._sync, add="+")
+        self.canvas.bind("<Configure>", self._sync, add="+")
+
+    def _sync(self, _event: tk.Event | None = None) -> None:
+        cw = max(1, self.canvas.winfo_width())
+        ch = max(1, self.canvas.winfo_height())
+        h = max(ch, self.inner.winfo_reqheight())
+        self.canvas.itemconfigure(self._win, width=cw, height=h)
+        self.canvas.configure(scrollregion=(0, 0, cw, h))
+
+    def needs_scroll(self) -> bool:
+        return self.inner.winfo_reqheight() > self.canvas.winfo_height() + 1
+
+    def on_mousewheel(self, event: tk.Event) -> None:
+        w = event.widget
+        if not isinstance(w, tk.Misc) or not str(w).startswith(str(self)):
+            return
+        try:
+            if w is not self.canvas and w.winfo_class() in self.SELF_SCROLLING:
+                return
+        except tk.TclError:
+            return
+        if not self.needs_scroll():
+            return
+        steps = int(-event.delta / 120) or (-1 if event.delta > 0 else 1)
+        self.canvas.yview_scroll(steps, "units")
+
+
 class ControlPanel(tk.Tk):
     def __init__(self, lock_sock: socket.socket) -> None:
         super().__init__()
         self.lock_sock = lock_sock
         self.title(f"{APP_NAME}  v{APP_VERSION}")
-        self.geometry("1350x1350")
-        self.minsize(1180, 900)
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.geometry(f"{min(1350, max(900, sw - 40))}x{min(1350, max(600, sh - 80))}")
+        self.minsize(900, 600)
         self.configure(bg=BG_MAIN)
 
         self._settings = load_settings(ROOT)
@@ -505,25 +554,38 @@ class ControlPanel(tk.Tk):
         self.content_host = tk.Frame(body, bg=BG_MAIN)
         self.content_host.pack(side="right", fill="both", expand=True, padx=(0, 14), pady=12)
 
-        self.pages: dict[str, tk.Frame] = {}
+        self.pages: dict[str, ScrollablePage] = {}
         for key in NAV_KEYS:
-            f = tk.Frame(self.content_host, bg=BG_MAIN)
+            f = ScrollablePage(self.content_host, bg=BG_MAIN)
             f.grid(row=0, column=0, sticky="nsew")
             self.pages[key] = f
+        # One mouse-wheel handler for the main window: scrolls the visible page
+        # unless the pointer is over a widget that scrolls itself (text, lists, tables).
+        self.bind("<MouseWheel>", self._route_mousewheel, add="+")
         self.content_host.grid_rowconfigure(0, weight=1)
         self.content_host.grid_columnconfigure(0, weight=1)
 
-        self._build_page_dashboard(self.pages["dashboard"])
-        self._build_page_queue(self.pages["queue"])
-        self._build_page_monitor(self.pages["monitor"])
-        self._build_page_logs(self.pages["logs"])
-        self._build_page_live_transcribe(self.pages["live_transcribe"])
-        self._build_page_handoff(self.pages["handoff"])
-        self._build_page_search(self.pages["search"])
-        self._build_page_review(self.pages["review"])
-        self._build_page_settings(self.pages["settings"])
+        self._build_page_dashboard(self.pages["dashboard"].inner)
+        self._build_page_queue(self.pages["queue"].inner)
+        self._build_page_monitor(self.pages["monitor"].inner)
+        self._build_page_logs(self.pages["logs"].inner)
+        self._build_page_live_transcribe(self.pages["live_transcribe"].inner)
+        self._build_page_handoff(self.pages["handoff"].inner)
+        self._build_page_search(self.pages["search"].inner)
+        self._build_page_review(self.pages["review"].inner)
+        self._build_page_settings(self.pages["settings"].inner)
 
         self._show_page("dashboard")
+
+    def _route_mousewheel(self, event: tk.Event) -> None:
+        page = self.pages.get(self._current_nav)
+        if page is not None:
+            page.on_mousewheel(event)
+
+    def _autowrap(self, label: tk.Label, pad: int = 8) -> tk.Label:
+        """Wrap a label to its real width so long text never forces the window wider."""
+        label.bind("<Configure>", lambda e: label.configure(wraplength=max(200, e.width - pad)), add="+")
+        return label
 
     def _highlight_nav(self, key: str) -> None:
         for k, lbl in self._nav_buttons.items():
@@ -610,6 +672,17 @@ class ControlPanel(tk.Tk):
         )
         return tile
 
+    def _stat_chip(self, parent: tk.Misc, title: str, var: tk.Variable, *, color: str = ACCENT) -> tk.Frame:
+        """Compact dashboard stat: label on the left, number on the right, one short row."""
+        chip = tk.Frame(parent, bg=BG_SOFT, highlightthickness=1, highlightbackground=CARD_BORDER)
+        tk.Label(chip, text=title.upper(), fg=FG_DIM, bg=BG_SOFT, font=(FONT_HEADLINE, 8, "bold")).pack(
+            side="left", padx=(10, 6), pady=5
+        )
+        tk.Label(chip, textvariable=var, fg=color, bg=BG_SOFT, font=(FONT_MONO, 13, "bold")).pack(
+            side="right", padx=(6, 10), pady=3
+        )
+        return chip
+
     @staticmethod
     def _attach_scrollbars(text_widget: tk.Text, parent: tk.Misc) -> None:
         ybar = ttk.Scrollbar(parent, orient="vertical", command=text_widget.yview)
@@ -631,67 +704,72 @@ class ControlPanel(tk.Tk):
             text="",
             anchor="w",
             justify="left",
-            wraplength=900,
+            wraplength=700,
             padx=12,
-            pady=10,
+            pady=6,
             fg="#fff",
             bg=WARN_BG,
             font=(FONT_BODY, 10),
         )
         self.banner_label.pack(fill="x")
+        self._autowrap(self.banner_label, pad=28)
 
         top = tk.Frame(outer, bg=BG_MAIN)
-        top.pack(fill="x", pady=(0, 14))
-        title_wrap = tk.Frame(top, bg=BG_MAIN)
-        title_wrap.pack(side="left", fill="x", expand=True)
-        self._section_title(title_wrap, "PIPELINE / MAIN", "Pipeline Watcher", "Watch folder • Whisper • Handoff")
-        badge = tk.Frame(top, bg="#2a1717", highlightthickness=1, highlightbackground="#8f5959", padx=14, pady=10)
-        badge.pack(side="right", anchor="ne", pady=(8, 0))
-        self._body_label(badge, textvariable=self.node_status_var, fg="#ffb4ab", mono=True, size=10, bold=True).pack()
+        top.pack(fill="x", pady=(0, 8))
+        self._headline(top, "Pipeline Watcher", size=16).pack(side="left")
+        self._body_label(top, "Watch folder > Whisper > Handoff", fg=FG_DIM, size=9).pack(side="left", padx=(12, 0), pady=(4, 0))
+        badge = tk.Frame(top, bg="#2a1717", highlightthickness=1, highlightbackground="#8f5959", padx=10, pady=3)
+        badge.pack(side="right")
+        self._body_label(badge, textvariable=self.node_status_var, fg="#ffb4ab", mono=True, size=9, bold=True).pack()
 
-        top_grid = tk.Frame(outer, bg=BG_MAIN)
-        top_grid.pack(fill="x", pady=(0, 14))
-        for col in range(6):
-            top_grid.columnconfigure(col, weight=1)
+        # Compact control bar across the top
+        bar = tk.Frame(outer, bg=BG_CARD, highlightthickness=1, highlightbackground=CARD_BORDER)
+        bar.pack(fill="x", pady=(0, 8))
+        bi = tk.Frame(bar, bg=BG_CARD)
+        bi.pack(fill="x", padx=12, pady=6)
+        self._headline(bi, "Watcher", size=12, fg=ACCENT).pack(side="left", padx=(0, 12))
+        self.power_btn = ttk.Button(bi, text="Start watcher", style="Accent.TButton", command=self._toggle_watcher_power)
+        self.power_btn.pack(side="left", ipadx=6)
+        ttk.Button(bi, text="Refresh now", command=self.refresh_once).pack(side="left", padx=(8, 0))
+        tk.Checkbutton(
+            bi, text="Auto-refresh (every 1s)", variable=self.auto_refresh_var,
+            bg=BG_CARD, fg=FG, activebackground=BG_CARD, activeforeground=FG, selectcolor=FIELD_BG,
+            highlightthickness=0, bd=0, font=(FONT_BODY, 9),
+        ).pack(side="left", padx=(14, 0))
 
-        ctrl = tk.Frame(top_grid, bg=BG_CARD, highlightthickness=1, highlightbackground=CARD_BORDER)
-        ctrl.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        cf = tk.Frame(ctrl, bg=BG_CARD)
-        cf.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(cf, "Watcher Control", size=16, fg=ACCENT).pack(anchor="w")
-        self.power_btn = ttk.Button(cf, text="Start watcher", style="Accent.TButton", command=self._toggle_watcher_power)
-        self.power_btn.pack(fill="x", pady=(18, 10))
-        ttk.Button(cf, text="Refresh now", command=self.refresh_once).pack(fill="x")
-        auto_row = tk.Frame(cf, bg=FIELD_BG, highlightthickness=1, highlightbackground="#253444")
-        auto_row.pack(fill="x", pady=(16, 0))
-        info = tk.Frame(auto_row, bg=FIELD_BG)
-        info.pack(side="left", fill="x", expand=True, padx=12, pady=10)
-        self._body_label(info, "AUTO-REFRESH", fg=FG, size=9, bold=True).pack(anchor="w")
-        self._body_label(info, "Polling every 1.0s", fg=FG_DIM, mono=True, size=9).pack(anchor="w")
-        ttk.Checkbutton(auto_row, variable=self.auto_refresh_var).pack(side="right", padx=12)
+        # Stat strip (one short row)
+        strip = tk.Frame(outer, bg=BG_MAIN)
+        strip.pack(fill="x", pady=(0, 8))
+        stats = [
+            ("Queue", self.queue_var, ACCENT_GOLD),
+            ("Completed", self.completed_var, ACCENT_MINT),
+            ("Failed", self.failed_var, ACCENT_RED),
+            ("Processed", self.processed_var, ACCENT),
+            ("Segment (s)", self.segment_var, "#8dcdff"),
+        ]
+        for i, (title, var, color) in enumerate(stats):
+            strip.columnconfigure(i, weight=1, uniform="stat")
+            self._stat_chip(strip, title, var, color=color).grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 6, 0))
 
-        self._metric_tile(top_grid, "Queue", self.queue_var, color=ACCENT_GOLD).grid(row=0, column=1, sticky="nsew", padx=4)
-        self._metric_tile(top_grid, "Completed", self.completed_var, color=ACCENT_MINT).grid(row=0, column=2, sticky="nsew", padx=4)
-        self._metric_tile(top_grid, "Failed", self.failed_var, color=ACCENT_RED).grid(row=0, column=3, sticky="nsew", padx=4)
-        self._metric_tile(top_grid, "Processed", self.processed_var, color=ACCENT).grid(row=0, column=4, sticky="nsew", padx=4)
-        self._metric_tile(top_grid, "Segment (s)", self.segment_var, color="#8dcdff").grid(row=0, column=5, sticky="nsew", padx=(4, 0))
+        self._build_easy_import(outer, compact=True).pack(fill="x", pady=(0, 8))
+        links_panel = youtube_intake.build_panel(
+            outer, self.youtube, theme=self._youtube_theme(), get_dirs=self._youtube_dirs, compact=True,
+            on_open_transcripts=self._open_library_transcripts,
+        )
+        links_panel.pack(fill="x", pady=(0, 8))
+        self._build_latest_transcripts(links_panel)
 
-        self._build_easy_import(outer, compact=True).pack(fill="x", pady=(0, 14))
-        youtube_intake.build_panel(
-            outer, self.youtube, theme=self._youtube_theme(), get_dirs=self._youtube_dirs, compact=True
-        ).pack(fill="x", pady=(0, 14))
-
-        status = self._card(outer, pady=(0, 14))
+        status = self._card(outer, pady=(0, 8))
         sf = tk.Frame(status, bg=BG_CARD)
         sf.pack(fill="both", expand=True, padx=0, pady=0)
         status_head = tk.Frame(sf, bg="#3a3a3a")
         status_head.pack(fill="x")
         head_inner = tk.Frame(status_head, bg="#3a3a3a")
-        head_inner.pack(fill="x", padx=18, pady=16)
+        head_inner.pack(fill="x", padx=14, pady=6)
         tk.Label(
             head_inner,
             textvariable=self.summary_var,
-            font=(FONT_HEADLINE, 18, "bold"),
+            font=(FONT_HEADLINE, 14, "bold"),
             fg=FG,
             bg="#3a3a3a",
             anchor="w",
@@ -704,50 +782,50 @@ class ControlPanel(tk.Tk):
         self._body_label(rt, textvariable=self.queue_health_var, fg=ACCENT_MINT, mono=True, size=9, bold=True).pack(side="left", padx=(6, 0))
 
         details = tk.Frame(sf, bg=BG_CARD)
-        details.pack(fill="x", padx=18, pady=18)
-        details.columnconfigure(0, weight=1)
-        details.columnconfigure(1, weight=1)
-        details.columnconfigure(2, weight=1)
-        self._row_dark(details, 0, "Phase", self.phase_var)
-        self._row_dark(details, 1, "Current file", self.file_var)
-        self._row_dark(details, 2, "Watcher PID", self.pid_var)
-        self._row_dark(details, 3, "Worker PID", self.worker_pid_var)
-        self._row_dark(details, 4, "Heartbeat", self.heartbeat_var)
-        self._row_dark(details, 5, "Last progress", self.progress_var)
-        self._row_dark(details, 6, "Segment end", self.segment_var)
-        self._row_dark(details, 7, "Active jobs", self.active_jobs_var)
-        self._row_dark(details, 8, "Health", self.health_var)
-        self._row_dark(details, 8, "Last error", self.error_var)
-        self._body_label(details, textvariable=self.detail_var, fg=FG_DIM, size=10, wraplength=940).grid(
-            row=9, column=0, columnspan=3, sticky="w", pady=(10, 0)
+        details.pack(fill="x", padx=14, pady=(4, 8))
+        for c in range(5):
+            details.columnconfigure(c, weight=1, uniform="detail")
+        fields = [
+            ("Phase", self.phase_var), ("Current file", self.file_var), ("Watcher PID", self.pid_var),
+            ("Worker PID", self.worker_pid_var), ("Heartbeat", self.heartbeat_var),
+            ("Last progress", self.progress_var), ("Segment end", self.segment_var),
+            ("Active jobs", self.active_jobs_var), ("Health", self.health_var), ("Last error", self.error_var),
+        ]
+        for i, (label, var) in enumerate(fields):
+            self._row_dark(details, i, label, var, cols=5)
+        self._autowrap(self._body_label(details, textvariable=self.detail_var, fg=FG_DIM, size=9)).grid(
+            row=2, column=0, columnspan=5, sticky="ew", pady=(2, 0)
         )
 
-        counters = self._card(outer, pady=(0, 14))
+        counters = self._card(outer, pady=(0, 8))
         gf = tk.Frame(counters, bg=BG_CARD)
-        gf.pack(fill="x", padx=18, pady=16)
+        gf.pack(fill="x", padx=14, pady=8)
         header = tk.Frame(gf, bg=BG_CARD)
         header.pack(fill="x")
-        self._headline(header, "Historical Counters", size=15, fg=FG).pack(side="left")
+        self._headline(header, "Historical Counters", size=12, fg=FG).pack(side="left")
         gg = tk.Frame(gf, bg=BG_CARD)
-        gg.pack(fill="x", pady=(14, 0))
+        gg.pack(fill="x", pady=(4, 0))
         self.queue_bar = self._gauge_dark(gg, 0, "Queue", self.queue_var)
-        self.completed_bar = self._gauge_dark(gg, 1, "Completed", self.completed_var)
-        self.failed_bar = self._gauge_dark(gg, 2, "Failed", self.failed_var)
-        self.processed_bar = self._gauge_dark(gg, 3, "Processed", self.processed_var)
+        self.completed_bar = self._gauge_dark(gg, 0, "Completed", self.completed_var, col=3)
+        self.failed_bar = self._gauge_dark(gg, 1, "Failed", self.failed_var)
+        self.processed_bar = self._gauge_dark(gg, 1, "Processed", self.processed_var, col=3)
 
         act = self._card(outer)
         af = tk.Frame(act, bg=BG_CARD)
-        af.pack(fill="x", padx=18, pady=18)
-        self._body_label(af, "TERMINAL QUICK ACTIONS", mono=True, fg=FG_DIM, size=10, bold=True).pack(anchor="w")
+        af.pack(fill="x", padx=14, pady=8)
+        self._body_label(af, "TERMINAL QUICK ACTIONS", mono=True, fg=FG_DIM, size=9, bold=True).pack(anchor="w")
         ar = tk.Frame(af, bg=BG_CARD)
-        ar.pack(fill="x", pady=(14, 0))
+        ar.pack(fill="x", pady=(6, 0))
         ttk.Button(ar, text="Open watch folder", command=lambda: open_path(self._watch_dir())).pack(side="left")
         ttk.Button(ar, text="Open videos", command=lambda: open_path(self._completed_dir())).pack(side="left", padx=(8, 0))
         ttk.Button(ar, text="Open transcripts", command=lambda: open_path(self._transcript_dir())).pack(side="left", padx=(8, 0))
         ttk.Button(ar, text="Open CSV", command=lambda: open_path(self._csv_dir())).pack(side="left", padx=(8, 0))
         ttk.Button(ar, text="Open JSON", command=lambda: open_path(self._json_dir())).pack(side="left", padx=(8, 0))
-        ttk.Button(ar, text="Reconcile finished job", command=self._reconcile_finished_job).pack(side="left", padx=(12, 0))
-        ttk.Button(ar, text="Clear last error", command=self._clear_last_error).pack(side="right")
+        ar2 = tk.Frame(af, bg=BG_CARD)
+        ar2.pack(fill="x", pady=(6, 0))
+        ttk.Button(ar2, text="Reconcile finished job", command=self._reconcile_finished_job).pack(side="left")
+        ttk.Button(ar2, text="Clear last error", command=self._clear_last_error).pack(side="left", padx=(8, 0))
+        self.quick_actions_frame = act
 
     def _youtube_theme(self) -> dict:
         return {
@@ -764,23 +842,23 @@ class ControlPanel(tk.Tk):
         known.append(ROOT / "watch_incoming_staging")
         return self._watch_dir(), known
 
-    def _row_dark(self, parent: tk.Frame, row: int, label: str, var: tk.StringVar) -> None:
-        col = row % 3
-        grid_row = row // 3
+    def _row_dark(self, parent: tk.Frame, row: int, label: str, var: tk.StringVar, *, cols: int = 3) -> None:
+        col = row % cols
+        grid_row = row // cols
         cell = tk.Frame(parent, bg=BG_CARD)
-        cell.grid(row=grid_row, column=col, sticky="ew", padx=(0 if col == 0 else 18, 0), pady=10)
-        self._body_label(cell, label.upper(), fg=FG_DIM, size=9, bold=True).pack(anchor="w")
-        self._body_label(cell, textvariable=var, fg=FG, mono=True, size=11).pack(anchor="w", pady=(6, 0))
+        cell.grid(row=grid_row, column=col, sticky="ew", padx=(0 if col == 0 else 18, 0), pady=3)
+        self._body_label(cell, label.upper(), fg=FG_DIM, size=8, bold=True).pack(anchor="w")
+        self._body_label(cell, textvariable=var, fg=FG, mono=True, size=10).pack(anchor="w", pady=(1, 0))
 
-    def _gauge_dark(self, parent: tk.Frame, row: int, name: str, var: tk.IntVar) -> ttk.Progressbar:
-        tk.Label(parent, text=name.upper(), fg=FG_DIM, bg=BG_CARD, width=12, anchor="w", font=(FONT_HEADLINE, 9, "bold")).grid(
-            row=row, column=0, sticky="w", pady=4
+    def _gauge_dark(self, parent: tk.Frame, row: int, name: str, var: tk.IntVar, *, col: int = 0) -> ttk.Progressbar:
+        tk.Label(parent, text=name.upper(), fg=FG_DIM, bg=BG_CARD, width=11, anchor="w", font=(FONT_HEADLINE, 9, "bold")).grid(
+            row=row, column=col, sticky="w", pady=1, padx=(18 if col else 0, 0)
         )
         bar = ttk.Progressbar(parent, orient="horizontal", mode="determinate", maximum=100)
-        bar.grid(row=row, column=1, sticky="ew", pady=4, padx=(0, 8))
-        parent.columnconfigure(1, weight=1)
+        bar.grid(row=row, column=col + 1, sticky="ew", pady=1, padx=(0, 8))
+        parent.columnconfigure(col + 1, weight=1)
         tk.Label(parent, textvariable=var, fg=ACCENT, bg=BG_CARD, width=6, anchor="e", font=(FONT_MONO, 11, "bold")).grid(
-            row=row, column=2, sticky="e", pady=4
+            row=row, column=col + 2, sticky="e", pady=1
         )
         return bar
 
@@ -1444,7 +1522,7 @@ class ControlPanel(tk.Tk):
         bar.pack(side="bottom", fill="x", padx=16, pady=10)
         sb.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
-        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-e.delta / 120), "units"))
+        win.bind("<MouseWheel>", lambda e: canvas.yview_scroll(int(-e.delta / 120), "units"))
         current = load_settings(ROOT)
         widgets: dict[str, tk.Variable] = {}
         sections: dict[str, list[str]] = {}
@@ -1817,10 +1895,93 @@ class ControlPanel(tk.Tk):
         )
         ttk.Button(row, text="Open handoff folder", command=self._open_handoff_folder).pack(side="left", padx=(8, 0))
         lbl = tk.Label(body, textvariable=self.easy_status_var, fg=FG_DIM, bg=BG_CARD, font=(FONT_BODY, 9),
-                       anchor="w", justify="left", wraplength=900)
-        lbl.pack(fill="x", pady=(6, 0))
+                       anchor="w", justify="left", wraplength=700)
+        lbl.pack(fill="x", pady=(4, 0))
+        self._autowrap(lbl)
         self._easy_status_labels.append(lbl)
         return card
+
+    def _library_transcripts_dir(self) -> Path:
+        try:
+            cfg = aeonimus_handoff.load_config()
+        except Exception:  # noqa: BLE001
+            cfg = aeonimus_handoff.HandoffConfig(aeonimus_handoff.default_inbox(), Path(self.set_library_dir.get()))
+        return cfg.library_dir("transcripts")
+
+    def _open_library_transcripts(self) -> None:
+        d = self._library_transcripts_dir()
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+        open_path(d)
+
+    def _build_latest_transcripts(self, panel: tk.Frame) -> None:
+        """Small 'Latest transcripts' list under the Add links panel: newest 5, double-click opens."""
+        box = tk.Frame(panel, bg=BG_CARD)
+        box.pack(fill="x", padx=18, pady=(0, 8))
+        head = tk.Frame(box, bg=BG_CARD)
+        head.pack(fill="x")
+        self._body_label(head, "LATEST TRANSCRIPTS", mono=True, fg=FG_DIM, size=9, bold=True).pack(side="left")
+        self._body_label(head, "double-click to open", fg=FG_DIM, size=8).pack(side="left", padx=(8, 0))
+        ttk.Button(head, text="Show in folder", command=self._show_latest_in_folder).pack(side="right")
+        ttk.Button(head, text="Open", command=self._open_latest_selected).pack(side="right", padx=(0, 6))
+        self.latest_list = tk.Listbox(
+            box, height=5, activestyle="none", bg=FIELD_BG, fg=FG, selectbackground=SECONDARY_CONTAINER,
+            selectforeground=FG, highlightthickness=1, highlightbackground=CARD_BORDER, relief="flat",
+            font=(FONT_BODY, 9),
+        )
+        self.latest_list.pack(fill="x", pady=(4, 0))
+        self.latest_list.bind("<Double-Button-1>", lambda _e: self._open_latest_selected())
+        self._latest_paths: list[Path] = []
+        self._latest_sig: tuple = ()
+        self._latest_checked = 0.0
+        self._refresh_latest_transcripts(force=True)
+
+    def _refresh_latest_transcripts(self, force: bool = False) -> None:
+        lb = getattr(self, "latest_list", None)
+        if lb is None:
+            return
+        now = datetime.now().timestamp()
+        if not force and now - self._latest_checked < 5.0:
+            return
+        self._latest_checked = now
+        paths = aeonimus_handoff.latest_transcripts(self._library_transcripts_dir(), limit=5)
+        sig = tuple((str(p), aeonimus_handoff.file_mtime(p)) for p in paths)
+        if sig == self._latest_sig and not force:
+            return
+        self._latest_sig = sig
+        self._latest_paths = paths
+        try:
+            lb.delete(0, "end")
+            if not paths:
+                lb.insert("end", "  No finished transcripts in the library yet.")
+            for p in paths:
+                lb.insert("end", "  " + aeonimus_handoff.describe_transcript(p))
+        except tk.TclError:
+            pass
+
+    def _selected_latest(self) -> Path | None:
+        if not getattr(self, "_latest_paths", None):
+            return None
+        sel = self.latest_list.curselection()
+        idx = sel[0] if sel else 0
+        return self._latest_paths[idx] if idx < len(self._latest_paths) else None
+
+    def _open_latest_selected(self) -> None:
+        p = self._selected_latest()
+        if p is not None and p.exists():
+            open_path(p)
+
+    def _show_latest_in_folder(self) -> None:
+        p = self._selected_latest()
+        if p is None or not p.exists():
+            self._open_library_transcripts()
+            return
+        if sys.platform == "win32":
+            subprocess.Popen(["explorer", "/select,", str(p)])
+        else:
+            open_path(p.parent)
 
     def _easy_status(self, text: str, color: str = FG_DIM) -> None:
         self.easy_status_var.set(text)
@@ -2282,6 +2443,7 @@ class ControlPanel(tk.Tk):
             messagebox.showinfo("LLM", f"Handoff copied to clipboard; opened {provider}.")
 
     def refresh_once(self) -> None:
+        self._refresh_latest_transcripts()
         self._settings = load_settings(ROOT)
         data = self._read_status()
         self._apply_status(data)

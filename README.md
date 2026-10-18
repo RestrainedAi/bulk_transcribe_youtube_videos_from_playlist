@@ -6,7 +6,7 @@ graphics card. It is part of the Aeonimus workflow: it imports link lists from
 the YouTube URL Lister and shares finished transcripts with the Comment
 Workbench.
 
-**Current version: 1.2.0** (see [CHANGELOG.md](CHANGELOG.md)). The version
+**Current version: 1.2.1** (see [CHANGELOG.md](CHANGELOG.md)). The version
 shows in the window title and the sidebar, and lives in `app_version.py`.
 
 ## Who it's for
@@ -39,6 +39,12 @@ The launcher runs a quick self-check (`startup_selfcheck.py`) and then
   **Load CSV / TXT** for a list. Videos, Shorts, live replays and playlists
   work. Only the audio is downloaded, into the watch folder, named
   `<title> [<videoId>]`.
+- **Open transcripts** (next to the status line in that panel) opens the
+  library's `transcripts` folder. **Latest transcripts** below it lists the
+  newest 5 finished transcripts; double-click one to open it, or use **Show in
+  folder**.
+- The Dashboard fits on screen at about 1000x1024; every page scrolls (scrollbar
+  or mouse wheel) when the window is smaller.
 - **Suno songs**: paste a link like `https://suno.com/song/<uuid>` or include
   it in a CSV. Files are named `<title> [suno-<uuid>]`. Sung vocals come out
   rougher than speech.

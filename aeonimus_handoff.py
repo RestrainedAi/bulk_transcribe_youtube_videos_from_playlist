@@ -350,3 +350,32 @@ def move_library(old: Path, new: Path) -> tuple[int, int]:
         except OSError:
             pass
     return moved, failed
+
+
+def file_mtime(p: Path) -> float:
+    try:
+        return p.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def latest_transcripts(folder: str | Path, limit: int = 5) -> list[Path]:
+    """Newest finished transcripts (.txt) in a folder, newest first. Missing folder -> []."""
+    folder = Path(folder)
+    try:
+        files = [p for p in folder.glob("*.txt") if p.is_file()]
+    except OSError:
+        return []
+    files.sort(key=lambda p: (file_mtime(p), p.name), reverse=True)
+    return files[: max(0, int(limit))]
+
+
+def describe_transcript(p: Path) -> str:
+    """'Title  -  Oct 17, 8:45 PM' for the Latest transcripts list (drops the [id] tag)."""
+    import re as _re
+    from datetime import datetime as _dt
+
+    title = _re.sub(r"\s*\[[^\]]+\]\s*$", "", p.stem).strip() or p.stem
+    ts = file_mtime(p)
+    when = _dt.fromtimestamp(ts).strftime("%b %d, %I:%M %p").replace(" 0", " ") if ts else ""
+    return f"{title}  -  {when}" if when else title
