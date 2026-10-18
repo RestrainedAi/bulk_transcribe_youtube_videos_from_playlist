@@ -57,7 +57,20 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "min_free_disk_gb": 10.0,
     "asr_models_dir": "E:\\.lmstudio\\models\\ASR",
     "asr_eval_python": "",
+    "theme": "Harbor",
 }
+
+
+THEME_NAMES = ("Harbor", "Midnight", "Graphite", "Aurora")
+
+
+def normalize_theme(value: Any) -> str:
+    """Known skin name (case-insensitive) or the Harbor default."""
+    if isinstance(value, str):
+        for n in THEME_NAMES:
+            if n.lower() == value.strip().lower():
+                return n
+    return "Harbor"
 
 
 def settings_path(repo_root: Path) -> Path:
@@ -79,6 +92,7 @@ def load_settings(repo_root: Path) -> dict[str, Any]:
     # granite-8b was removed (model deleted); older saved settings fall back to the default engine.
     if data.get("asr_engine") not in ("whisper", "voxtral-mini-3b", "granite-2b"):
         data["asr_engine"] = "whisper"
+    data["theme"] = normalize_theme(data.get("theme"))
     return data
 
 

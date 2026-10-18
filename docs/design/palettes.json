@@ -1,0 +1,808 @@
+{
+ "order": [
+  "bg-deep",
+  "bg",
+  "surface",
+  "surface-2",
+  "surface-raised",
+  "input",
+  "nav-selected",
+  "border",
+  "accent",
+  "primary",
+  "success",
+  "success-surface",
+  "danger",
+  "danger-text",
+  "danger-surface",
+  "warning",
+  "warning-surface",
+  "text",
+  "text-muted",
+  "text-disabled"
+ ],
+ "palettes": {
+  "Harbor": {
+   "mood": "The current Workbench blue: cool slate surfaces with a sky-blue accent.",
+   "c": {
+    "bg-deep": "#0c0e0f",
+    "bg": "#121415",
+    "surface": "#1e2021",
+    "surface-2": "#1a1c1d",
+    "surface-raised": "#282a2b",
+    "input": "#333536",
+    "nav-selected": "#07152a",
+    "border": "#3e4851",
+    "accent": "#8dcdff",
+    "primary": "#004b70",
+    "success": "#3ce36a",
+    "success-surface": "#0f2a19",
+    "danger": "#93000a",
+    "danger-text": "#ffb4ab",
+    "danger-surface": "#2a1717",
+    "warning": "#ffb84d",
+    "warning-surface": "#2b2112",
+    "text": "#e2e2e3",
+    "text-muted": "#bdc8d3",
+    "text-disabled": "#6b7480"
+   }
+  },
+  "Midnight": {
+   "mood": "A refined Harbor: deep navy-ink surfaces, a calmer azure accent and crisper borders.",
+   "c": {
+    "bg-deep": "#080b11",
+    "bg": "#0d1118",
+    "surface": "#151b25",
+    "surface-2": "#111620",
+    "surface-raised": "#1d2431",
+    "input": "#232c3b",
+    "nav-selected": "#13254a",
+    "border": "#3a4658",
+    "accent": "#7ab8ff",
+    "primary": "#1a4280",
+    "success": "#4ade80",
+    "success-surface": "#0e2a1c",
+    "danger": "#992019",
+    "danger-text": "#ffb4ab",
+    "danger-surface": "#2d1518",
+    "warning": "#fbbf24",
+    "warning-surface": "#2a2110",
+    "text": "#e6ebf2",
+    "text-muted": "#a9b4c4",
+    "text-disabled": "#5f6b7d"
+   }
+  },
+  "Graphite": {
+   "mood": "Warm neutral graphite with a sea-glass teal accent; quiet, editorial and easy on long sessions.",
+   "c": {
+    "bg-deep": "#0e0d0c",
+    "bg": "#141312",
+    "surface": "#1d1c1a",
+    "surface-2": "#191817",
+    "surface-raised": "#272523",
+    "input": "#2f2d2a",
+    "nav-selected": "#0f2a27",
+    "border": "#48443f",
+    "accent": "#5fd3bc",
+    "primary": "#0d544b",
+    "success": "#7dd87a",
+    "success-surface": "#15261a",
+    "danger": "#952e1c",
+    "danger-text": "#ffb8a8",
+    "danger-surface": "#2b1814",
+    "warning": "#f2b45a",
+    "warning-surface": "#2a2114",
+    "text": "#ece8e3",
+    "text-muted": "#bdb6ad",
+    "text-disabled": "#6e6861"
+   }
+  },
+  "Aurora": {
+   "mood": "The bold brand skin: near-black plum surfaces with an electric violet accent that reads as Aeonimus.",
+   "c": {
+    "bg-deep": "#0b0a10",
+    "bg": "#110f17",
+    "surface": "#1a1722",
+    "surface-2": "#16131d",
+    "surface-raised": "#231f2d",
+    "input": "#2c2738",
+    "nav-selected": "#2a1d55",
+    "border": "#4a4260",
+    "accent": "#b69cff",
+    "primary": "#3d2a8e",
+    "success": "#3ddc97",
+    "success-surface": "#0f2a20",
+    "danger": "#9a1e33",
+    "danger-text": "#ffb3c1",
+    "danger-surface": "#2d1520",
+    "warning": "#ffc04d",
+    "warning-surface": "#2c2213",
+    "text": "#ece9f5",
+    "text-muted": "#b8b1cc",
+    "text-disabled": "#665f7a"
+   }
+  }
+ },
+ "checks": {
+  "Harbor": [
+   {
+    "fg": "text",
+    "bg": "bg",
+    "min": 4.5,
+    "label": "Body text on background",
+    "ratio": 14.27,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Body text on card",
+    "ratio": 12.64,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "surface-raised",
+    "min": 4.5,
+    "label": "Body text on secondary button",
+    "ratio": 11.14,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "input",
+    "min": 4.5,
+    "label": "Text in input",
+    "ratio": 9.52,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "bg",
+    "min": 4.5,
+    "label": "Muted text on background",
+    "ratio": 10.88,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Muted text on card",
+    "ratio": 9.63,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "surface-2",
+    "min": 4.5,
+    "label": "Muted text on sidebar/table",
+    "ratio": 10.07,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Accent text on card",
+    "ratio": 9.59,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "nav-selected",
+    "min": 4.5,
+    "label": "Selected nav label",
+    "ratio": 10.71,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "primary",
+    "min": 4.5,
+    "label": "Primary button label",
+    "ratio": 5.49,
+    "ok": true
+   },
+   {
+    "fg": "success",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Success text on card",
+    "ratio": 9.65,
+    "ok": true
+   },
+   {
+    "fg": "success",
+    "bg": "success-surface",
+    "min": 4.5,
+    "label": "Success chip label",
+    "ratio": 9.07,
+    "ok": true
+   },
+   {
+    "fg": "danger-text",
+    "bg": "danger",
+    "min": 4.5,
+    "label": "Danger button label",
+    "ratio": 5.51,
+    "ok": true
+   },
+   {
+    "fg": "danger-text",
+    "bg": "danger-surface",
+    "min": 4.5,
+    "label": "Danger chip label",
+    "ratio": 10.03,
+    "ok": true
+   },
+   {
+    "fg": "warning",
+    "bg": "warning-surface",
+    "min": 4.5,
+    "label": "Warning strip / chip label",
+    "ratio": 9.19,
+    "ok": true
+   },
+   {
+    "fg": "warning",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Warning text on card",
+    "ratio": 9.52,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface",
+    "min": 3.0,
+    "label": "UI: focus ring / checkbox / selected border vs card",
+    "ratio": 9.59,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface-2",
+    "min": 3.0,
+    "label": "UI: progress fill vs track",
+    "ratio": 10.03,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "bg",
+    "min": 3.0,
+    "label": "Large: page title on background",
+    "ratio": 14.27,
+    "ok": true
+   },
+   {
+    "fg": "text-disabled",
+    "bg": "surface-2",
+    "min": null,
+    "label": "Disabled label (WCAG-exempt, recorded only)",
+    "ratio": 3.61,
+    "ok": true
+   },
+   {
+    "fg": "border",
+    "bg": "surface",
+    "min": null,
+    "label": "Card/input border vs card (decorative; recorded only)",
+    "ratio": 1.75,
+    "ok": true
+   }
+  ],
+  "Midnight": [
+   {
+    "fg": "text",
+    "bg": "bg",
+    "min": 4.5,
+    "label": "Body text on background",
+    "ratio": 15.79,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Body text on card",
+    "ratio": 14.42,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "surface-raised",
+    "min": 4.5,
+    "label": "Body text on secondary button",
+    "ratio": 13.0,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "input",
+    "min": 4.5,
+    "label": "Text in input",
+    "ratio": 11.73,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "bg",
+    "min": 4.5,
+    "label": "Muted text on background",
+    "ratio": 9.02,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Muted text on card",
+    "ratio": 8.24,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "surface-2",
+    "min": 4.5,
+    "label": "Muted text on sidebar/table",
+    "ratio": 8.64,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Accent text on card",
+    "ratio": 8.33,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "nav-selected",
+    "min": 4.5,
+    "label": "Selected nav label",
+    "ratio": 7.28,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "primary",
+    "min": 4.5,
+    "label": "Primary button label",
+    "ratio": 4.74,
+    "ok": true
+   },
+   {
+    "fg": "success",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Success text on card",
+    "ratio": 9.92,
+    "ok": true
+   },
+   {
+    "fg": "success",
+    "bg": "success-surface",
+    "min": 4.5,
+    "label": "Success chip label",
+    "ratio": 8.82,
+    "ok": true
+   },
+   {
+    "fg": "danger-text",
+    "bg": "danger",
+    "min": 4.5,
+    "label": "Danger button label",
+    "ratio": 4.8,
+    "ok": true
+   },
+   {
+    "fg": "danger-text",
+    "bg": "danger-surface",
+    "min": 4.5,
+    "label": "Danger chip label",
+    "ratio": 10.04,
+    "ok": true
+   },
+   {
+    "fg": "warning",
+    "bg": "warning-surface",
+    "min": 4.5,
+    "label": "Warning strip / chip label",
+    "ratio": 9.51,
+    "ok": true
+   },
+   {
+    "fg": "warning",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Warning text on card",
+    "ratio": 10.35,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface",
+    "min": 3.0,
+    "label": "UI: focus ring / checkbox / selected border vs card",
+    "ratio": 8.33,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface-2",
+    "min": 3.0,
+    "label": "UI: progress fill vs track",
+    "ratio": 8.73,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "bg",
+    "min": 3.0,
+    "label": "Large: page title on background",
+    "ratio": 15.79,
+    "ok": true
+   },
+   {
+    "fg": "text-disabled",
+    "bg": "surface-2",
+    "min": null,
+    "label": "Disabled label (WCAG-exempt, recorded only)",
+    "ratio": 3.35,
+    "ok": true
+   },
+   {
+    "fg": "border",
+    "bg": "surface",
+    "min": null,
+    "label": "Card/input border vs card (decorative; recorded only)",
+    "ratio": 1.81,
+    "ok": true
+   }
+  ],
+  "Graphite": [
+   {
+    "fg": "text",
+    "bg": "bg",
+    "min": 4.5,
+    "label": "Body text on background",
+    "ratio": 15.22,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Body text on card",
+    "ratio": 13.96,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "surface-raised",
+    "min": 4.5,
+    "label": "Body text on secondary button",
+    "ratio": 12.52,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "input",
+    "min": 4.5,
+    "label": "Text in input",
+    "ratio": 11.26,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "bg",
+    "min": 4.5,
+    "label": "Muted text on background",
+    "ratio": 9.24,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Muted text on card",
+    "ratio": 8.48,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "surface-2",
+    "min": 4.5,
+    "label": "Muted text on sidebar/table",
+    "ratio": 8.83,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Accent text on card",
+    "ratio": 9.35,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "nav-selected",
+    "min": 4.5,
+    "label": "Selected nav label",
+    "ratio": 8.35,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "primary",
+    "min": 4.5,
+    "label": "Primary button label",
+    "ratio": 4.83,
+    "ok": true
+   },
+   {
+    "fg": "success",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Success text on card",
+    "ratio": 9.71,
+    "ok": true
+   },
+   {
+    "fg": "success",
+    "bg": "success-surface",
+    "min": 4.5,
+    "label": "Success chip label",
+    "ratio": 9.04,
+    "ok": true
+   },
+   {
+    "fg": "danger-text",
+    "bg": "danger",
+    "min": 4.5,
+    "label": "Danger button label",
+    "ratio": 4.72,
+    "ok": true
+   },
+   {
+    "fg": "danger-text",
+    "bg": "danger-surface",
+    "min": 4.5,
+    "label": "Danger chip label",
+    "ratio": 10.19,
+    "ok": true
+   },
+   {
+    "fg": "warning",
+    "bg": "warning-surface",
+    "min": 4.5,
+    "label": "Warning strip / chip label",
+    "ratio": 8.64,
+    "ok": true
+   },
+   {
+    "fg": "warning",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Warning text on card",
+    "ratio": 9.29,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface",
+    "min": 3.0,
+    "label": "UI: focus ring / checkbox / selected border vs card",
+    "ratio": 9.35,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface-2",
+    "min": 3.0,
+    "label": "UI: progress fill vs track",
+    "ratio": 9.74,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "bg",
+    "min": 3.0,
+    "label": "Large: page title on background",
+    "ratio": 15.22,
+    "ok": true
+   },
+   {
+    "fg": "text-disabled",
+    "bg": "surface-2",
+    "min": null,
+    "label": "Disabled label (WCAG-exempt, recorded only)",
+    "ratio": 3.22,
+    "ok": true
+   },
+   {
+    "fg": "border",
+    "bg": "surface",
+    "min": null,
+    "label": "Card/input border vs card (decorative; recorded only)",
+    "ratio": 1.76,
+    "ok": true
+   }
+  ],
+  "Aurora": [
+   {
+    "fg": "text",
+    "bg": "bg",
+    "min": 4.5,
+    "label": "Body text on background",
+    "ratio": 15.88,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Body text on card",
+    "ratio": 14.75,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "surface-raised",
+    "min": 4.5,
+    "label": "Body text on secondary button",
+    "ratio": 13.44,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "input",
+    "min": 4.5,
+    "label": "Text in input",
+    "ratio": 12.06,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "bg",
+    "min": 4.5,
+    "label": "Muted text on background",
+    "ratio": 9.23,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Muted text on card",
+    "ratio": 8.57,
+    "ok": true
+   },
+   {
+    "fg": "text-muted",
+    "bg": "surface-2",
+    "min": 4.5,
+    "label": "Muted text on sidebar/table",
+    "ratio": 8.91,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Accent text on card",
+    "ratio": 7.72,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "nav-selected",
+    "min": 4.5,
+    "label": "Selected nav label",
+    "ratio": 6.54,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "primary",
+    "min": 4.5,
+    "label": "Primary button label",
+    "ratio": 4.79,
+    "ok": true
+   },
+   {
+    "fg": "success",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Success text on card",
+    "ratio": 9.99,
+    "ok": true
+   },
+   {
+    "fg": "success",
+    "bg": "success-surface",
+    "min": 4.5,
+    "label": "Success chip label",
+    "ratio": 8.66,
+    "ok": true
+   },
+   {
+    "fg": "danger-text",
+    "bg": "danger",
+    "min": 4.5,
+    "label": "Danger button label",
+    "ratio": 4.78,
+    "ok": true
+   },
+   {
+    "fg": "danger-text",
+    "bg": "danger-surface",
+    "min": 4.5,
+    "label": "Danger chip label",
+    "ratio": 10.06,
+    "ok": true
+   },
+   {
+    "fg": "warning",
+    "bg": "warning-surface",
+    "min": 4.5,
+    "label": "Warning strip / chip label",
+    "ratio": 9.59,
+    "ok": true
+   },
+   {
+    "fg": "warning",
+    "bg": "surface",
+    "min": 4.5,
+    "label": "Warning text on card",
+    "ratio": 10.84,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface",
+    "min": 3.0,
+    "label": "UI: focus ring / checkbox / selected border vs card",
+    "ratio": 7.72,
+    "ok": true
+   },
+   {
+    "fg": "accent",
+    "bg": "surface-2",
+    "min": 3.0,
+    "label": "UI: progress fill vs track",
+    "ratio": 8.02,
+    "ok": true
+   },
+   {
+    "fg": "text",
+    "bg": "bg",
+    "min": 3.0,
+    "label": "Large: page title on background",
+    "ratio": 15.88,
+    "ok": true
+   },
+   {
+    "fg": "text-disabled",
+    "bg": "surface-2",
+    "min": null,
+    "label": "Disabled label (WCAG-exempt, recorded only)",
+    "ratio": 3.04,
+    "ok": true
+   },
+   {
+    "fg": "border",
+    "bg": "surface",
+    "min": null,
+    "label": "Card/input border vs card (decorative; recorded only)",
+    "ratio": 1.88,
+    "ok": true
+   }
+  ]
+ }
+}

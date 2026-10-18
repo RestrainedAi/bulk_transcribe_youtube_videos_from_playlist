@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: **2026-10-17**, version **1.3.0**.
+Last updated: **2026-10-17**, version **1.3.1**.
 
 ## Big picture
 
@@ -39,6 +39,18 @@ completed_transcripts\ .txt, completed_json\ .json, completed_csv\ .csv
 | `tests/` | pytest suites (handoff, YouTube intake, Suno links, caption export, and more). |
 
 Since the 2026-10-17 snapshot every module the app imports is committed.
+
+## Skins (1.3.1)
+
+- `themes.py` holds `SKINS` (Harbor, Midnight, Graphite, Aurora; 20 tokens each, same order as
+  `docs/design/palettes.json`), `normalize()` (unknown -> Harbor), `panel_constants()` (every colour
+  constant the control panel uses) and `color_map(old, new)`.
+- `watcher_control_panel.py` binds its colour constants from `panel_constants(theme)` at import, using the
+  `theme` key in `watcher_settings.json` (normalised by `watcher_settings.normalize_theme`). There are no hex
+  literals left in the panel.
+- `ControlPanel.apply_skin(name)` switches live: rebinds the module constants, reruns `_apply_theme`,
+  `_apply_screen_styles` and `_apply_dash_styles`, then walks every plain Tk widget and remaps colour options,
+  Text/Treeview tags and Canvas items through `color_map`. Any failure shows a restart note under the Theme field.
 
 ## Control panel layout (1.3.0)
 
