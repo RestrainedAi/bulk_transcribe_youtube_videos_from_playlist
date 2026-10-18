@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: **2026-10-17**, version **1.2.0**.
+Last updated: **2026-10-17**, version **1.3.0**.
 
 ## Big picture
 
@@ -39,6 +39,21 @@ completed_transcripts\ .txt, completed_json\ .json, completed_csv\ .csv
 | `tests/` | pytest suites (handoff, YouTube intake, Suno links, caption export, and more). |
 
 Since the 2026-10-17 snapshot every module the app imports is committed.
+
+## Control panel layout (1.3.0)
+
+Every page is built inside a `ScrollablePage` by a `_build_<page>_page` method
+using shared helpers (`_page_header`, `_control_bar`, `_card_header`, `_tiles`,
+`_table`, `_textview`, `_chip`). Each page that changes shape registers a layout
+function in `self._page_layouts`; `_rerun_layouts()` calls them when the window
+crosses the compact threshold (width >= 1200 and height < 900, the same rule as
+the Dashboard). Compact layouts re-pack existing widgets with `in_=` into
+two- or three-column frames, so no widget is rebuilt and no state is lost.
+Column widths for the Treeviews come from the Figma spec and are set with
+`_set_columns`. Settings has a dirty-state model (`SETTINGS_FIELDS`,
+`_settings_snapshot`) behind one sticky Save bar outside the scrolled canvas.
+`tests/test_screens_layout.py` checks that every page fits at 1000x1024 and
+1280x720.
 
 ## Storage
 

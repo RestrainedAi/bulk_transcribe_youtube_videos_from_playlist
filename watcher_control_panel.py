@@ -112,6 +112,10 @@ D_DANGER_TEXT = "#ffb4ab"
 D_DANGER_SURFACE = "#2a1717"
 D_TEXT = "#e2e2e3"
 D_MUTED = "#bdc8d3"
+# 1.3.0 token additions (Figma VariableID:8:2-8:4)
+D_WARNING = "#ffb84d"
+D_WARNING_SURFACE = "#2b2112"
+D_TEXT_DISABLED = "#6b7480"
 F_APP = ("Segoe UI", -16, "bold")
 F_PAGE = ("Segoe UI Semibold", -20)
 F_SECTION = ("Segoe UI Semibold", -14)
@@ -594,7 +598,9 @@ class ControlPanel(tk.Tk):
         self.content_host.grid_rowconfigure(0, weight=1)
         self.content_host.grid_columnconfigure(0, weight=1)
 
+        self._page_layouts: list = []
         self._build_page_dashboard(self.pages["dashboard"].inner)
+        self._apply_screen_styles()
         self._build_page_queue(self.pages["queue"].inner)
         self._build_page_monitor(self.pages["monitor"].inner)
         self._build_page_logs(self.pages["logs"].inner)
@@ -907,8 +913,10 @@ class ControlPanel(tk.Tk):
         self._dlabel(lh, "Last 5 \u00b7 double-click to open", fg=D_MUTED).pack(side="right")
         self._build_latest_transcripts(lf)
         self.coverage_warning_var = tk.StringVar(value="")
-        self._coverage_label = tk.Label(lf, textvariable=self.coverage_warning_var, fg="#f2b84b", bg=D_SURFACE,
-                                        anchor="w", justify="left", wraplength=420)
+        self._coverage_label = tk.Label(lf, textvariable=self.coverage_warning_var, fg=D_WARNING, bg=D_WARNING_SURFACE,
+                                        anchor="w", justify="left", wraplength=420, font=F_MONO_LABEL, padx=8, pady=4,
+                                        highlightthickness=1, highlightbackground=D_WARNING)
+        self._autowrap(self._coverage_label, pad=20)
 
         # terminal quick actions
         self._d_quick, qf = self._dcard(outer)
@@ -963,6 +971,7 @@ class ControlPanel(tk.Tk):
         compact = event.width >= 1200 and event.height < 900
         if compact != self._dash_compact:
             self._layout_dashboard(compact=compact)
+            self._rerun_layouts()
 
     @staticmethod
     def _forget(*widgets: tk.Misc) -> None:
@@ -1111,423 +1120,1301 @@ class ControlPanel(tk.Tk):
         )
         return bar
 
+    # ---- 1.3.0 shared components (screens_redesign_spec.md section 2) ----
+    def _apply_screen_styles(self) -> None:
+        st = ttk.Style(self)
+        base = dict(font=F_BODY, padding=(12, 6), relief="flat", borderwidth=1, focusthickness=0)
+        small = dict(base, padding=(12, 4))
+        st.configure("Dash.Warning.TButton", background=D_WARNING_SURFACE, foreground=D_WARNING, bordercolor=D_WARNING,
+                     lightcolor=D_WARNING_SURFACE, darkcolor=D_WARNING_SURFACE, focuscolor=D_WARNING_SURFACE, **small)
+        st.configure("Dash.SmallSecondary.TButton", background=D_RAISED, foreground=D_TEXT, bordercolor=D_BORDER,
+                     lightcolor=D_RAISED, darkcolor=D_RAISED, focuscolor=D_RAISED, **small)
+        maps = {
+            "Dash.Primary.TButton": "#005a86", "Dash.Secondary.TButton": D_INPUT, "Dash.Danger.TButton": "#ad0010",
+            "Dash.Small.TButton": D_INPUT, "Dash.SmallSecondary.TButton": D_INPUT, "Dash.Warning.TButton": "#3a2c16",
+        }
+        for name, active in maps.items():
+            st.map(name, background=[("disabled", D_SURFACE_2), ("active", active)],
+                   foreground=[("disabled", D_TEXT_DISABLED)], bordercolor=[("disabled", D_BORDER)])
+        st.configure("Screen.Treeview", background=D_SURFACE_2, fieldbackground=D_SURFACE_2, foreground=D_TEXT,
+                     rowheight=24, font=F_BODY, borderwidth=0, bordercolor=D_BORDER, lightcolor=D_SURFACE_2,
+                     darkcolor=D_SURFACE_2)
+        st.map("Screen.Treeview", background=[("selected", D_NAV_SEL)], foreground=[("selected", D_ACCENT)])
+        st.configure("Screen.Treeview.Heading", background=D_RAISED, foreground=D_MUTED, font=F_LABEL, relief="flat",
+                     borderwidth=0, bordercolor=D_BORDER, lightcolor=D_RAISED, darkcolor=D_RAISED, padding=(8, 4))
+        st.map("Screen.Treeview.Heading", background=[("active", D_RAISED)], foreground=[("active", D_TEXT)])
+        for orient, sticky in (("Vertical", "ns"), ("Horizontal", "ew")):
+            name = f"Screen.{orient}.TScrollbar"
+            st.configure(name, troughcolor=D_SURFACE_2, background=D_BORDER, bordercolor=D_SURFACE_2,
+                         lightcolor=D_BORDER, darkcolor=D_BORDER, arrowsize=8, width=8, gripcount=0, relief="flat")
+            st.map(name, background=[("active", D_MUTED)])
+            st.layout(name, [(f"{orient}.Scrollbar.trough", {"sticky": sticky, "children": [
+                (f"{orient}.Scrollbar.thumb", {"expand": "1", "sticky": "nswe"})]})])
+        for bg_name, bg in (("Screen", D_SURFACE), ("ScreenBg", D_BG)):
+            st.configure(f"{bg_name}.TCheckbutton", background=bg, foreground=D_TEXT, font=F_BODY,
+                         indicatorbackground=D_SURFACE_2, indicatorforeground=D_BG_DEEP, indicatormargin=(0, 0, 8, 0),
+                         focuscolor=bg)
+            st.map(f"{bg_name}.TCheckbutton", background=[("active", bg)], foreground=[("active", D_TEXT)],
+                   indicatorbackground=[("selected", D_ACCENT), ("active", D_INPUT)])
+        st.configure("Screen.TCombobox", fieldbackground=D_INPUT, background=D_INPUT, foreground=D_TEXT,
+                     arrowcolor=D_ACCENT, bordercolor=D_BORDER, lightcolor=D_INPUT, darkcolor=D_INPUT, padding=(8, 6))
+        st.map("Screen.TCombobox", fieldbackground=[("readonly", D_INPUT)], foreground=[("readonly", D_TEXT)],
+               selectbackground=[("readonly", D_INPUT)], selectforeground=[("readonly", D_TEXT)],
+               bordercolor=[("focus", D_ACCENT)])
+        st.configure("Screen.TSpinbox", fieldbackground=D_INPUT, background=D_INPUT, foreground=D_TEXT,
+                     arrowcolor=D_ACCENT, bordercolor=D_BORDER, lightcolor=D_INPUT, darkcolor=D_INPUT,
+                     insertcolor=D_TEXT, padding=(8, 6))
+        st.map("Screen.TSpinbox", bordercolor=[("focus", D_ACCENT)])
+        st.configure("Invalid.TSpinbox", fieldbackground=D_INPUT, background=D_INPUT, foreground=D_DANGER_TEXT,
+                     arrowcolor=D_ACCENT, bordercolor=D_DANGER_TEXT, lightcolor=D_DANGER_TEXT, darkcolor=D_DANGER_TEXT,
+                     insertcolor=D_TEXT, padding=(8, 6))
+        self.option_add("*TCombobox*Listbox.background", D_INPUT)
+        self.option_add("*TCombobox*Listbox.foreground", D_TEXT)
+        self.option_add("*TCombobox*Listbox.selectBackground", D_NAV_SEL)
+        self.option_add("*TCombobox*Listbox.selectForeground", D_ACCENT)
+
+    CHIP_KINDS = {
+        "success": (D_SUCCESS, D_SUCCESS_SURFACE), "warning": (D_WARNING, D_WARNING_SURFACE),
+        "danger": (D_DANGER_TEXT, D_DANGER_SURFACE), "accent": (D_ACCENT, D_NAV_SEL),
+        "muted": (D_MUTED, D_RAISED), "off": (D_TEXT_DISABLED, D_SURFACE_2),
+    }
+
+    def _chip(self, parent: tk.Misc, text: str = "", *, kind: str = "accent",
+              textvariable: tk.Variable | None = None) -> tk.Frame:
+        """Status-only chip (spec 2): dot + mono label, no border, never clickable."""
+        fg, bg = self.CHIP_KINDS[kind]
+        f = tk.Frame(parent, bg=bg, cursor="arrow")
+        dot = tk.Canvas(f, width=8, height=8, bg=bg, highlightthickness=0, bd=0)
+        oid = dot.create_oval(0, 0, 8, 8, fill=fg, outline="")
+        dot.pack(side="left", padx=(8, 0), pady=8)
+        lbl = tk.Label(f, text=text, font=F_MONO_LABEL, fg=fg, bg=bg, padx=0, pady=0)
+        if textvariable is not None:
+            lbl.configure(textvariable=textvariable)
+        lbl.pack(side="left", padx=8, pady=4)
+        f._chip_parts = (dot, oid, lbl)  # noqa: SLF001
+        return f
+
+    def _set_chip(self, chip: tk.Frame, kind: str, text: str | None = None) -> None:
+        fg, bg = self.CHIP_KINDS[kind]
+        dot, oid, lbl = chip._chip_parts  # noqa: SLF001
+        chip.configure(bg=bg)
+        dot.configure(bg=bg)
+        dot.itemconfigure(oid, fill=fg)
+        lbl.configure(bg=bg, fg=fg)
+        if text is not None:
+            lbl.configure(text=text)
+
+    def _wrap_label(self, label: tk.Label, minimum: int = 80) -> tk.Label:
+        def on_cfg(e: tk.Event) -> None:
+            w = max(minimum, e.width - 4)
+            if int(str(label.cget("wraplength")) or 0) != w:
+                label.configure(wraplength=w)
+        label.configure(width=1)
+        label.bind("<Configure>", on_cfg, add="+")
+        return label
+
+    def _page_header(self, parent: tk.Misc, crumb: str, title: str, sub: str) -> dict:
+        """Page header (spec 2): breadcrumb over title + inline subtitle. Pieces are re-packed per layout."""
+        h = {
+            "head": tk.Frame(parent, bg=D_BG), "block": tk.Frame(parent, bg=D_BG),
+            "crumb_row": tk.Frame(parent, bg=D_BG), "title_row": tk.Frame(parent, bg=D_BG),
+        }
+        h["crumb"] = self._dlabel(parent, crumb, font=F_MONO_LABEL, fg=D_ACCENT)
+        h["title"] = self._dlabel(parent, title, font=F_PAGE)
+        h["sub"] = self._dlabel(parent, sub, fg=D_MUTED)
+        return h
+
+    def _pack_header(self, h: dict, outer: tk.Frame, *, sub_in_crumb: bool = False,
+                     right: tk.Misc | None = None, title_extra: tk.Misc | None = None,
+                     right_fill: bool = False) -> None:
+        h["head"].pack(in_=outer, fill="x", pady=(0, 12))
+        h["block"].pack(in_=h["head"], side="left")
+        h["crumb_row"].pack(in_=h["block"], fill="x")
+        h["title_row"].pack(in_=h["block"], fill="x", pady=(4, 0))
+        h["crumb"].pack(in_=h["crumb_row"], side="left")
+        h["title"].pack(in_=h["title_row"], side="left")
+        if sub_in_crumb:
+            h["sub"].pack(in_=h["crumb_row"], side="left", padx=(12, 0))
+        else:
+            h["sub"].pack(in_=h["title_row"], side="left", padx=(12, 0), pady=(6, 0))
+        if title_extra is not None:
+            title_extra.pack(in_=h["title_row"], side="left", padx=(12, 0))
+        if right is not None:
+            if right_fill:
+                right.pack(in_=h["head"], side="left", fill="x", expand=True, padx=(16, 0))
+            else:
+                right.pack(in_=h["head"], side="right")
+
+    def _header_parts(self, h: dict) -> list:
+        return [h["head"], h["block"], h["crumb_row"], h["title_row"], h["crumb"], h["title"], h["sub"]]
+
+    def _control_bar(self, parent: tk.Misc) -> tuple[tk.Frame, tk.Frame]:
+        bar = tk.Frame(parent, bg=D_SURFACE, highlightthickness=1, highlightbackground=D_BORDER)
+        inner = tk.Frame(bar, bg=D_SURFACE)
+        inner.pack(fill="both", expand=True, padx=12, pady=7)
+        return bar, inner
+
+    def _card_header(self, parent: tk.Misc, title: str) -> tk.Frame:
+        row = tk.Frame(parent, bg=parent.cget("bg"))
+        row.pack(fill="x")
+        self._dlabel(row, title, font=F_SECTION).pack(side="left")
+        return row
+
+    def _tiles(self, parent: tk.Misc, items: list) -> tuple[tk.Frame, dict]:
+        """60 px stat tiles, same component as the Dashboard."""
+        frame = tk.Frame(parent, bg=D_BG)
+        values: dict[str, tk.Label] = {}
+        for i, (key, title, var, color) in enumerate(items):
+            frame.columnconfigure(i, weight=1, uniform="tiles")
+            tile = tk.Frame(frame, bg=D_SURFACE_2, highlightthickness=1, highlightbackground=D_BORDER)
+            tile.grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 8, 0))
+            tk.Label(tile, text=title, font=F_LABEL, fg=D_MUTED, bg=D_SURFACE_2, anchor="w").pack(fill="x", padx=12, pady=(8, 0))
+            v = tk.Label(tile, textvariable=var, font=F_VALUE_LG, fg=color, bg=D_SURFACE_2, anchor="w", width=1)
+            v.pack(fill="x", padx=12, pady=(0, 8))
+            values[key] = v
+        return frame, values
+
+    def _textview(self, parent: tk.Misc, *, wrap: str = "none", height: int = 10,
+                  bg: str = D_BG_DEEP) -> tuple[tk.Frame, tk.Text]:
+        """Text/log view (spec 2): bg-deep, 1 px border, mono 12 px, 8 px flat scrollbars."""
+        shell = tk.Frame(parent, bg=bg, highlightthickness=1, highlightbackground=D_BORDER)
+        t = tk.Text(shell, wrap=wrap, height=height, width=1, bg=bg, fg=D_TEXT, insertbackground=D_TEXT,
+                    relief="flat", bd=0, highlightthickness=0, font=F_VALUE, padx=0, pady=0,
+                    selectbackground=D_NAV_SEL, selectforeground=D_ACCENT)
+        ybar = ttk.Scrollbar(shell, orient="vertical", command=t.yview, style="Screen.Vertical.TScrollbar")
+        t.configure(yscrollcommand=ybar.set)
+        t.grid(row=0, column=0, sticky="nsew", padx=(8, 0), pady=(8, 8))
+        ybar.grid(row=0, column=1, sticky="ns", padx=(8, 4), pady=8)
+        if wrap == "none":
+            xbar = ttk.Scrollbar(shell, orient="horizontal", command=t.xview, style="Screen.Horizontal.TScrollbar")
+            t.configure(xscrollcommand=xbar.set)
+            xbar.grid(row=1, column=0, sticky="ew", padx=(8, 0), pady=(0, 4))
+        shell.grid_rowconfigure(0, weight=1)
+        shell.grid_columnconfigure(0, weight=1)
+        t.tag_configure("warn", foreground=D_WARNING)
+        t.tag_configure("error", foreground=D_DANGER_TEXT)
+        t.tag_configure("debug", foreground=D_MUTED)
+        t.tag_configure("latest", foreground=D_ACCENT)
+        return shell, t
+
+    def _table(self, parent: tk.Misc, cols: list, *, height: int = 8) -> tuple[tk.Frame, ttk.Treeview]:
+        """Table (spec 2): 24 px header + rows, surface-2 body, warning rows, 8 px scrollbar."""
+        shell = tk.Frame(parent, bg=D_SURFACE_2, highlightthickness=1, highlightbackground=D_BORDER)
+        tv = ttk.Treeview(shell, columns=[c for c, _l in cols], show="headings", height=height, selectmode="browse",
+                          style="Screen.Treeview")
+        for c, label in cols:
+            tv.heading(c, text=label.upper(), anchor="w")
+            tv.column(c, width=60, minwidth=40, stretch=False, anchor="w")
+        tv.column(cols[-1][0], stretch=True)
+        sb = ttk.Scrollbar(shell, orient="vertical", command=tv.yview, style="Screen.Vertical.TScrollbar")
+        tv.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y", padx=(0, 4), pady=(28, 4))
+        tv.pack(side="left", fill="both", expand=True)
+        tv.tag_configure("warn", background=D_WARNING_SURFACE, foreground=D_WARNING)
+        tv.tag_configure("st_success", foreground=D_SUCCESS)
+        tv.tag_configure("st_accent", foreground=D_ACCENT)
+        tv.tag_configure("st_muted", foreground=D_MUTED)
+        tv.tag_configure("st_danger", foreground=D_DANGER_TEXT)
+        return shell, tv
+
+    @staticmethod
+    def _set_columns(tv: ttk.Treeview, widths: dict) -> None:
+        """Spec column widths; body cells are 12 px narrower with the scrollbar, so the stretch column gives way."""
+        cols = list(tv["columns"])
+        for c in cols:
+            w = widths[c] - (16 if c == cols[-1] else 0)
+            tv.column(c, width=w, minwidth=min(40, w))
+
+    def _rerun_layouts(self) -> None:
+        for fn in getattr(self, "_page_layouts", []):
+            try:
+                fn(compact=bool(self._dash_compact))
+            except tk.TclError:
+                pass
+
+    # ---------- Queue (spec 3) ----------
     def _build_page_queue(self, parent: tk.Frame) -> None:
-        wrap = tk.Frame(parent, bg=BG_MAIN)
-        wrap.pack(fill="both", expand=True)
+        o = tk.Frame(parent, bg=D_BG)
+        o.pack(fill="both", expand=True)
+        q = self._q = {"outer": o}
+        q["hdr"] = self._page_header(o, "QUEUE / INGESTION", "Queue Management", "Watch folder, downloads and the running queue")
+        q["badge"] = self._badge(o)
+        q["ctrl"], ci = self._control_bar(o)
+        self._dlabel(ci, "Watcher", font=F_SECTION, fg=D_ACCENT).pack(side="left")
+        self._divider(ci).pack(side="left", padx=12)
+        self.q_stop_btn = ttk.Button(ci, text="\u25a0  Stop watcher", style="Dash.Danger.TButton", command=self._stop_watcher)
+        self.q_stop_btn.pack(side="left")
+        self.q_start_btn = ttk.Button(ci, text="\u25b6  Start watcher (scan existing)", style="Dash.Secondary.TButton",
+                                      command=self._start_watcher)
+        self.q_start_btn.pack(side="left", padx=(12, 0))
+        q["tiles"], self._q_tile_values = self._tiles(o, [
+            ("active", "ACTIVE TASKS", self.queue_active_var, D_ACCENT),
+            ("depth", "QUEUE DEPTH", self.queue_depth_var, D_TEXT),
+            ("throughput", "THROUGHPUT", self.queue_throughput_var, D_SUCCESS),
+            ("health", "SYSTEM HEALTH", self.queue_health_var, D_SUCCESS)])
 
-        top = tk.Frame(wrap, bg=BG_MAIN)
-        top.pack(fill="x", pady=(0, 14))
-        self._section_title(top, "QUEUE / INGESTION", "Queue Management", "Global processing pipeline and media ingestion control.")
-        top_actions = tk.Frame(top, bg=BG_MAIN)
-        top_actions.pack(anchor="e", pady=(10, 0))
-        ttk.Button(top_actions, text="Stop watcher", command=self._stop_watcher).pack(side="left")
-        ttk.Button(top_actions, text="New task", style="Accent.TButton", command=lambda: open_path(self._watch_dir())).pack(
-            side="left", padx=(12, 0)
-        )
+        # Add media: watch folder, URL Lister, YouTube / Suno links (all pre-1.3.0 controls kept)
+        q["add"], af = self._dcard(o)
+        q["add_body"] = af
+        wrow = tk.Frame(af, bg=D_SURFACE)
+        q["w_title"] = self._dlabel(wrow, "Watch folder", font=F_SECTION)
+        q["w_title"].configure(width=24)
+        q["w_btn"] = ttk.Button(wrow, text="Open watch folder", style="Dash.Primary.TButton",
+                                command=lambda: open_path(self._watch_dir()))
+        q["w_help"] = self._wrap_label(self._dlabel(wrow, "Drop video or audio files here; the watcher transcribes them.",
+                                                    fg=D_MUTED))
+        q["w_row"] = wrow
+        urow = tk.Frame(af, bg=D_SURFACE)
+        q["u_title"] = self._dlabel(urow, "From the URL Lister", font=F_SECTION)
+        q["u_title"].configure(width=24)
+        q["u_btns"] = tk.Frame(urow, bg=D_SURFACE)
+        ttk.Button(q["u_btns"], text="Import from URL Lister", style="Dash.Primary.TButton",
+                   command=self._easy_import).pack(side="left")
+        ttk.Button(q["u_btns"], text="Open handoff folder", style="Dash.Secondary.TButton",
+                   command=self._open_handoff_folder).pack(side="left", padx=(8, 0))
+        q["u_status"] = self._wrap_label(tk.Label(urow, textvariable=self.easy_status_var, fg=D_MUTED, bg=D_SURFACE,
+                                                  font=F_BODY, anchor="w", justify="left"))
+        self._easy_status_labels.append(q["u_status"])
+        q["u_row"] = urow
+        theme = self._youtube_theme()
+        q["links"] = youtube_intake.build_panel(af, self.youtube, theme=theme, get_dirs=self._youtube_dirs, compact=True)
+        q["links"].configure(highlightthickness=0)
+        try:
+            q["links"].winfo_children()[0].pack_configure(padx=0, pady=0)
+            q["links_title"] = q["links"].winfo_children()[0].winfo_children()[0].winfo_children()[0]
+        except (IndexError, tk.TclError):
+            q["links_title"] = None
 
-        ingest = self._card(wrap, pady=(0, 14))
-        ingest_body = tk.Frame(ingest, bg=BG_CARD)
-        ingest_body.pack(fill="both", expand=True, padx=20, pady=22)
-        self._headline(ingest_body, "Ingest New Media", size=18).pack(anchor="center")
-        self._body_label(
-            ingest_body,
-            "Drop source media into the watch folder to initialize the pipeline. Existing files can also be scanned on startup.",
-            size=11,
-            fg=FG_DIM,
-            wraplength=760,
-            justify="center",
-        ).pack(anchor="center", pady=(8, 14))
-        ingest_btns = tk.Frame(ingest_body, bg=BG_CARD)
-        ingest_btns.pack()
-        ttk.Button(ingest_btns, text="Browse files", style="Accent.TButton", command=lambda: open_path(self._watch_dir())).pack(
-            side="left"
-        )
-        ttk.Button(ingest_btns, text="Start watcher (scan existing)", command=self._start_watcher).pack(
-            side="left", padx=(14, 0)
-        )
-
-        self._build_easy_import(wrap).pack(fill="x", pady=(0, 14))
-        youtube_intake.build_panel(
-            wrap, self.youtube, theme=self._youtube_theme(), get_dirs=self._youtube_dirs
-        ).pack(fill="x", pady=(0, 14))
-
-        stats = tk.Frame(wrap, bg=BG_MAIN)
-        stats.pack(fill="x", pady=(0, 14))
-        for col in range(4):
-            stats.columnconfigure(col, weight=1)
-        self._metric_tile(stats, "Active tasks", self.queue_active_var, color=ACCENT).grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        self._metric_tile(stats, "Queue depth", self.queue_depth_var, color=FG).grid(row=0, column=1, sticky="ew", padx=4)
-        self._metric_tile(stats, "Throughput", self.queue_throughput_var, color=ACCENT_MINT).grid(row=0, column=2, sticky="ew", padx=4)
-        self._metric_tile(stats, "System health", self.queue_health_var, color=ACCENT_MINT).grid(row=0, column=3, sticky="ew", padx=(8, 0))
-
-        active = self._card(wrap, expand=True, pady=(0, 14))
-        af = tk.Frame(active, bg=BG_CARD)
-        af.pack(fill="both", expand=True, padx=18, pady=18)
-        hdr = tk.Frame(af, bg=BG_CARD)
+        # Active Queue
+        q["active"], qa = self._dcard(o)
+        hdr = tk.Frame(qa, bg=D_SURFACE)
         hdr.pack(fill="x")
-        self._headline(hdr, "Active Queue", size=16, fg=ACCENT).pack(side="left")
-        self._body_label(hdr, textvariable=self.queue_meta_var, fg=FG_DIM, size=10).pack(side="left", padx=(14, 0))
-        live = tk.Frame(af, bg=BG_CARD)
-        live.pack(fill="x", pady=(12, 0))
+        self._dlabel(hdr, "Active Queue", font=F_SECTION).pack(side="left")
+        self.queue_pause_text = tk.StringVar(value="Pause queue")
+        self.q_pause_btn = ttk.Button(hdr, textvariable=self.queue_pause_text, style="Dash.Primary.TButton",
+                                      command=self._queue_toggle_pause)
+        self.q_pause_btn.pack(side="right")
+        self._dlabel(hdr, textvariable=self.queue_meta_var, fg=D_MUTED, clip=True).pack(side="right", fill="x", expand=True,
+                                                                                        padx=(12, 8))
+        self._dlabel(hdr, "", fg=D_MUTED)  # spacer keeps the header 32 px
+        now = tk.Frame(qa, bg=D_SURFACE)
+        now.pack(fill="x", pady=(8, 0))
+        nrow = tk.Frame(now, bg=D_SURFACE)
+        nrow.pack(fill="x")
         self.live_name_var = tk.StringVar(value="Nothing transcribing right now")
         self.live_detail_var = tk.StringVar(value="")
-        self._body_label(live, textvariable=self.live_name_var, fg=FG, size=11).pack(anchor="w")
-        self.live_bar = ttk.Progressbar(live, orient="horizontal", mode="determinate", maximum=100)
-        self.live_bar.pack(fill="x", pady=(6, 4))
-        self._body_label(live, textvariable=self.live_detail_var, fg=FG_DIM, size=10).pack(anchor="w")
-        cols = ("file", "state", "engine", "progress", "eta")
-        self.queue_tree = ttk.Treeview(af, columns=cols, show="headings", height=10, selectmode="browse")
-        self.queue_tree.heading("file", text="Source file")
-        self.queue_tree.heading("state", text="State")
-        self.queue_tree.heading("engine", text="Engine")
-        self.queue_tree.heading("progress", text="Progress")
-        self.queue_tree.heading("eta", text="ETA")
-        self.queue_tree.column("file", width=400)
-        self.queue_tree.column("state", width=120)
-        self.queue_tree.column("engine", width=170)
-        self.queue_tree.column("progress", width=170)
-        self.queue_tree.column("eta", width=80, anchor="e")
-        self.queue_tree.pack(fill="both", expand=True, pady=(10, 0))
-        qbtns = tk.Frame(af, bg=BG_CARD)
-        qbtns.pack(fill="x", pady=(10, 0))
-        ttk.Button(qbtns, text="Move up", command=lambda: self._queue_move(-1)).pack(side="left")
-        ttk.Button(qbtns, text="Move down", command=lambda: self._queue_move(1)).pack(side="left", padx=(8, 0))
-        ttk.Button(qbtns, text="Skip selected", command=self._queue_skip).pack(side="left", padx=(8, 0))
-        self.queue_pause_text = tk.StringVar(value="Pause queue")
-        self._body_label(qbtns, text="Pause queue = finish the current file, start no new ones (watcher stays on).", fg=FG_DIM, size=9).pack(side="right", padx=(0, 10))
-        ttk.Button(qbtns, textvariable=self.queue_pause_text, command=self._queue_toggle_pause).pack(side="right")
+        self.live_pct_var = tk.StringVar(value="")
+        self._dlabel(nrow, "Now transcribing", font=F_LABEL, fg=D_MUTED).pack(side="left")
+        self._dlabel(nrow, textvariable=self.live_pct_var, font=F_VALUE, fg=D_ACCENT).pack(side="right")
+        self._dlabel(nrow, textvariable=self.live_name_var, clip=True).pack(side="left", fill="x", expand=True, padx=(8, 8))
+        bar1 = MiniBar(now, fill=D_ACCENT, bg=D_SURFACE)
+        bar1.pack(fill="x", pady=(4, 0))
+        self._live_bars = [bar1]
+        self._dlabel(now, textvariable=self.live_detail_var, fg=D_MUTED, clip=True).pack(fill="x", pady=(4, 0))
+        q["table"], self.queue_tree = self._table(qa, [("file", "Source file"), ("state", "State"), ("engine", "Engine"),
+                                                        ("progress", "Progress"), ("eta", "ETA")], height=8)
+        self.queue_tree.column("eta", anchor="e")
+        q["table"].pack(fill="both", expand=True, pady=(8, 0))
+        acts = tk.Frame(qa, bg=D_SURFACE)
+        acts.pack(fill="x", pady=(8, 0))
+        ttk.Button(acts, text="Move up", style="Dash.SmallSecondary.TButton", command=lambda: self._queue_move(-1)).pack(side="left")
+        ttk.Button(acts, text="Move down", style="Dash.SmallSecondary.TButton", command=lambda: self._queue_move(1)).pack(
+            side="left", padx=(8, 0))
+        ttk.Button(acts, text="Skip selected", style="Dash.SmallSecondary.TButton", command=self._queue_skip).pack(
+            side="left", padx=(8, 0))
+        self._wrap_label(self._dlabel(acts, "Pause queue = finish the current file, start no new ones (watcher stays on).",
+                                      fg=D_MUTED)).pack(side="left", fill="x", expand=True, padx=(8, 0))
         self._queue_paused = False
         self._queue_order: list[str] = []
         self._last_queue_data: dict | None = None
 
-        recent = self._card(wrap)
-        rf = tk.Frame(recent, bg=BG_CARD)
-        rf.pack(fill="both", expand=True, padx=18, pady=18)
-        row = tk.Frame(rf, bg=BG_CARD)
-        row.pack(fill="x")
-        self._headline(row, "Recently Completed", size=16, fg=FG).pack(side="left")
-        ttk.Button(row, text="Open videos", command=lambda: open_path(self._completed_dir())).pack(side="right")
-        self.queue_recent_text = tk.Text(
-            rf,
-            height=7,
-            bg=BG_LOG,
-            fg=FG,
-            insertbackground=FG,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=CARD_BORDER,
-            font=(FONT_MONO, 10),
-        )
-        self.queue_recent_text.pack(fill="both", expand=True, pady=(12, 0))
+        # Recently Completed
+        q["recent"], rf = self._dcard(o)
+        rh = tk.Frame(rf, bg=D_SURFACE)
+        rh.pack(fill="x")
+        self._dlabel(rh, "Recently Completed", font=F_SECTION).pack(side="left")
+        ttk.Button(rh, text="Open videos", style="Dash.SmallSecondary.TButton",
+                   command=lambda: open_path(self._completed_dir())).pack(side="right")
+        q["recent_shell"], self.queue_recent_text = self._textview(rf, wrap="none", height=4)
+        q["recent_shell"].pack(fill="both", expand=True, pady=(8, 0))
 
+        q["cols"] = tk.Frame(o, bg=D_BG)
+        q["cols"].columnconfigure(0, weight=1)
+        q["cols"].columnconfigure(1, minsize=400)
+        q["right"] = tk.Frame(o, bg=D_BG)
+        for w in (q["ctrl"], q["tiles"], q["add"], q["active"], q["recent"], q["badge"]):
+            w.lift()
+        self._page_layouts.append(self._layout_queue)
+        self._layout_queue(compact=False)
+
+    def _layout_queue(self, *, compact: bool) -> None:
+        q = self._q
+        o = q["outer"]
+        self._forget(*self._header_parts(q["hdr"]), q["badge"], q["ctrl"], q["tiles"], q["add"], q["active"],
+                     q["recent"], q["cols"], q["right"], q["w_title"], q["w_btn"], q["w_help"], q["w_row"],
+                     q["u_title"], q["u_btns"], q["u_status"], q["u_row"], q["links"])
+        af = q["add_body"]
+        if not compact:
+            self._pack_header(q["hdr"], o, right=q["badge"])
+            q["ctrl"].pack(in_=o, fill="x", pady=(0, 12))
+            q["tiles"].pack(in_=o, fill="x", pady=(0, 12))
+            q["add"].pack(in_=o, fill="x", pady=(0, 12))
+            q["active"].pack(in_=o, fill="both", expand=True, pady=(0, 12))
+            q["recent"].pack(in_=o, fill="x")
+            q["w_row"].pack(in_=af, fill="x")
+            q["w_title"].pack(side="left")
+            q["w_btn"].pack(side="left", padx=(8, 0))
+            q["w_help"].pack(side="left", fill="x", expand=True, padx=(8, 0))
+            q["u_row"].pack(in_=af, fill="x", pady=(12, 0))
+            q["u_title"].pack(side="left")
+            q["u_btns"].pack(side="left", padx=(8, 0))
+            q["u_status"].pack(side="left", fill="x", expand=True, padx=(8, 0))
+            q["links"].pack(in_=af, fill="x", pady=(12, 0))
+            if q["links_title"] is not None:
+                q["links_title"].pack_configure(side="left", fill="none")
+            self.queue_tree.configure(height=8)
+            self._set_columns(self.queue_tree, {"file": 332, "state": 104, "engine": 132, "progress": 144, "eta": 56})
+            self.queue_recent_text.configure(height=4)
+        else:
+            self._pack_header(q["hdr"], o, sub_in_crumb=True, title_extra=q["badge"], right=q["ctrl"], right_fill=True)
+            q["tiles"].pack(in_=o, fill="x", pady=(0, 12))
+            q["cols"].pack(in_=o, fill="both", expand=True)
+            q["active"].grid(in_=q["cols"], row=0, column=0, sticky="nsew", padx=(0, 12))
+            q["right"].grid(in_=q["cols"], row=0, column=1, sticky="nsew")
+            q["cols"].rowconfigure(0, weight=1)
+            q["add"].pack(in_=q["right"], fill="x", pady=(0, 12))
+            q["recent"].pack(in_=q["right"], fill="both", expand=True)
+            q["w_row"].pack(in_=af, fill="x")
+            q["w_help"].pack(side="bottom", fill="x", pady=(8, 0))
+            q["w_title"].pack(side="left")
+            q["w_btn"].pack(side="right")
+            q["u_row"].pack(in_=af, fill="x", pady=(12, 0))
+            q["u_title"].pack(side="top", anchor="w")
+            q["u_btns"].pack(side="top", anchor="w", pady=(8, 0))
+            q["u_status"].pack(side="top", fill="x", pady=(8, 0))
+            q["links"].pack(in_=af, fill="x", pady=(12, 0))
+            if q["links_title"] is not None:
+                q["links_title"].pack_configure(side="top", fill="x", pady=(0, 8))
+            self.queue_tree.configure(height=11)
+            self._set_columns(self.queue_tree, {"file": 244, "state": 96, "engine": 120, "progress": 120, "eta": 56})
+            self.queue_recent_text.configure(height=5)
+
+    # ---------- Monitor (spec 4; trends chart is a proposal, not built) ----------
     def _build_page_monitor(self, parent: tk.Frame) -> None:
-        wrap = tk.Frame(parent, bg=BG_MAIN)
-        wrap.pack(fill="both", expand=True)
-        top = tk.Frame(wrap, bg=BG_MAIN)
-        top.pack(fill="x", pady=(0, 14))
-        self._section_title(top, "LIVE STREAMING", "System Performance", "Real-time telemetry and resource distribution analytics.")
-        status = tk.Frame(top, bg=BG_MAIN)
-        status.pack(anchor="e", pady=(8, 0))
-        self._body_label(status, textvariable=self.monitor_cpu_var, mono=True, fg=ACCENT, size=13, bold=True).pack(side="left", padx=(0, 12))
-        self._body_label(status, textvariable=self.monitor_mem_var, mono=True, fg=FG, size=13, bold=True).pack(side="left", padx=(0, 12))
-        self._body_label(status, textvariable=self.monitor_gpu_var, mono=True, fg=ACCENT_MINT, size=13, bold=True).pack(side="left")
+        o = tk.Frame(parent, bg=D_BG)
+        o.pack(fill="both", expand=True)
+        m = self._m = {"outer": o}
+        m["hdr"] = self._page_header(o, "LIVE STREAMING", "System Performance", "CPU, memory and GPU while jobs run")
+        m["badge"] = self._badge(o)
+        self._m_tile_vars = {k: tk.StringVar(value="--") for k in ("cpu", "mem", "gpu")}
 
-        grid = tk.Frame(wrap, bg=BG_MAIN)
-        grid.pack(fill="both", expand=True)
-        grid.columnconfigure(0, weight=2)
-        grid.columnconfigure(1, weight=1)
-        grid.rowconfigure(0, weight=1)
-        grid.rowconfigure(1, weight=1)
+        def mirror(src: tk.StringVar, dst: tk.StringVar, prefix: str) -> None:
+            v = src.get()
+            dst.set(v[len(prefix):] if v.startswith(prefix) else v)
 
-        cpu_card = self._card(grid, autopack=False)
-        cpu_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=(0, 10))
-        cf = tk.Frame(cpu_card, bg=BG_CARD)
-        cf.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(cf, "Processing Unit", size=16, fg=ACCENT).pack(anchor="w")
-        self._body_label(cf, textvariable=self.monitor_hint_var, fg=FG_DIM, size=10, wraplength=660).pack(anchor="w", pady=(8, 14))
-        self.resource_text = tk.Text(
-            cf,
-            wrap="none",
-            height=18,
-            bg=SURFACE_INK,
-            fg=FG,
-            insertbackground=FG,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=CARD_BORDER,
-            font=(FONT_MONO, 10),
-        )
-        text_wrap = tk.Frame(cf, bg=BG_CARD)
-        text_wrap.pack(fill="both", expand=True)
-        self.resource_text.master = text_wrap
-        self.resource_text.pack_forget()
-        self.resource_text = tk.Text(
-            text_wrap,
-            wrap="none",
-            height=18,
-            bg=SURFACE_INK,
-            fg=FG,
-            insertbackground=FG,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=CARD_BORDER,
-            font=(FONT_MONO, 10),
-        )
-        self._attach_scrollbars(self.resource_text, text_wrap)
+        for key, src, prefix in (("cpu", self.monitor_cpu_var, "CPU "), ("mem", self.monitor_mem_var, "MEM "),
+                                 ("gpu", self.monitor_gpu_var, "GPU ")):
+            src.trace_add("write", lambda *_a, s=src, d=self._m_tile_vars[key], p=prefix: mirror(s, d, p))
+            mirror(src, self._m_tile_vars[key], prefix)
+        m["tiles"], self._m_tile_values = self._tiles(o, [
+            ("cpu", "CPU", self._m_tile_vars["cpu"], D_ACCENT), ("mem", "MEMORY", self._m_tile_vars["mem"], D_TEXT),
+            ("gpu", "GPU", self._m_tile_vars["gpu"], D_SUCCESS), ("health", "LIVE HEALTH", self.queue_health_var, D_SUCCESS)])
+        m["proc"], pf = self._dcard(o)
+        ph = tk.Frame(pf, bg=D_SURFACE)
+        ph.pack(fill="x")
+        self._dlabel(ph, "Processing Unit", font=F_SECTION).pack(side="left")
+        self._dlabel(ph, "watch_resource.jsonl \u00b7 newest at the bottom", fg=D_MUTED).pack(side="right")
+        self._dlabel(pf, textvariable=self.monitor_hint_var, fg=D_MUTED, clip=True).pack(fill="x", pady=(8, 0))
+        shell, self.resource_text = self._textview(pf, wrap="none", height=10)
+        shell.pack(fill="both", expand=True, pady=(8, 0))
+        m["disk"], df = self._dcard(o)
+        dh = tk.Frame(df, bg=D_SURFACE)
+        dh.pack(fill="x")
+        self._dlabel(dh, "Disk / Telemetry Stream", font=F_SECTION).pack(side="left")
+        self._dlabel(dh, textvariable=self.monitor_disk_var, font=F_VALUE, fg=D_ACCENT).pack(side="right")
+        self._wrap_label(self._dlabel(df, "Telemetry rolls into the watcher resource log while jobs are active. "
+                                          "Set the log profile to tuning or debug in Settings for more samples.",
+                                      fg=D_MUTED)).pack(fill="x", pady=(8, 0))
+        for w in (m["tiles"], m["proc"], m["disk"], m["badge"]):
+            w.lift()
+        self._page_layouts.append(self._layout_monitor)
+        self._layout_monitor(compact=False)
 
-        mem_card = self._card(grid, autopack=False)
-        mem_card.grid(row=0, column=1, sticky="nsew", pady=(0, 10))
-        mf = tk.Frame(mem_card, bg=BG_CARD)
-        mf.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(mf, "Memory Utilization", size=16, fg=FG).pack(anchor="w")
-        self._body_label(mf, textvariable=self.monitor_mem_var, mono=True, fg=ACCENT, size=28, bold=True).pack(anchor="w", pady=(18, 4))
-        self._body_label(mf, "Latest memory / process snapshot from telemetry stream.", fg=FG_DIM, size=10, wraplength=260).pack(anchor="w")
-        self._body_label(mf, textvariable=self.monitor_disk_var, mono=True, fg=FG_DIM, size=10).pack(anchor="w", pady=(18, 0))
+    def _layout_monitor(self, *, compact: bool) -> None:
+        m = self._m
+        o = m["outer"]
+        self._forget(*self._header_parts(m["hdr"]), m["badge"], m["tiles"], m["proc"], m["disk"])
+        self._pack_header(m["hdr"], o, sub_in_crumb=compact, right=m["badge"])
+        m["tiles"].pack(in_=o, fill="x", pady=(0, 12))
+        m["proc"].pack(in_=o, fill="both", expand=True, pady=(0, 12))
+        m["disk"].pack(in_=o, fill="x")
+        self.resource_text.configure(height=24 if not compact else 12)
 
-        disk_card = self._card(grid, autopack=False)
-        disk_card.grid(row=1, column=0, sticky="nsew", padx=(0, 10))
-        df = tk.Frame(disk_card, bg=BG_CARD)
-        df.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(df, "Disk / Telemetry Stream", size=16, fg=FG).pack(anchor="w")
-        self._body_label(df, "Telemetry rolls into the watcher resource log while jobs are active. Use this panel to watch trend lines and spot contention early.", fg=FG_DIM, size=10, wraplength=660).pack(anchor="w", pady=(8, 12))
-        self._body_label(df, textvariable=self.monitor_disk_var, mono=True, fg=ACCENT, size=10).pack(anchor="w")
-
-        proc_card = self._card(grid, autopack=False)
-        proc_card.grid(row=1, column=1, sticky="nsew")
-        pf = tk.Frame(proc_card, bg=BG_CARD)
-        pf.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(pf, "Live Health", size=16, fg=FG).pack(anchor="w")
-        self._body_label(pf, textvariable=self.queue_health_var, mono=True, fg=ACCENT_MINT, size=22, bold=True).pack(anchor="w", pady=(14, 6))
-        self._body_label(pf, textvariable=self.monitor_gpu_var, mono=True, fg=FG, size=10).pack(anchor="w")
-        self._body_label(pf, textvariable=self.monitor_cpu_var, mono=True, fg=FG, size=10).pack(anchor="w", pady=(6, 0))
-
+    # ---------- Logs (spec 5; level filter is a proposal, not built) ----------
     def _build_page_logs(self, parent: tk.Frame) -> None:
-        wrap = tk.Frame(parent, bg=BG_MAIN)
-        wrap.pack(fill="both", expand=True)
-        top = tk.Frame(wrap, bg=BG_MAIN)
-        top.pack(fill="x", pady=(0, 14))
-        self._section_title(top, "SYSTEM / LIVE LOGS", "System Logs", "Real-time execution stream for the active watcher node.")
-        actions = tk.Frame(top, bg=BG_MAIN)
-        actions.pack(anchor="e", pady=(8, 0))
-        ttk.Button(actions, text="Export logs", command=lambda: open_path(self._watch_dir() / "watch_events.log")).pack(side="left")
-        ttk.Button(actions, text="Unified log", command=self._open_unified_log).pack(side="left", padx=(12, 0))
-        ttk.Button(actions, text="Copy for support", command=self._copy_for_support).pack(side="left", padx=(12, 0))
-        ttk.Button(actions, text="Refresh", style="Accent.TButton", command=self.refresh_once).pack(side="left", padx=(12, 0))
+        o = tk.Frame(parent, bg=D_BG)
+        o.pack(fill="both", expand=True)
+        lg = self._lg = {"outer": o}
+        lg["hdr"] = self._page_header(o, "SYSTEM / LIVE LOGS", "System Logs", "watch_events.log for the running watcher")
+        lg["chip"] = self._chip(o, kind="success", textvariable=self.log_status_var)
+        lg["ctrl"], ci = self._control_bar(o)
+        lg["ctrl_inner"] = ci
+        ttk.Button(ci, text="Open log file", style="Dash.Secondary.TButton",
+                   command=lambda: open_path(self._watch_dir() / "watch_events.log")).pack(side="left")
+        ttk.Button(ci, text="Unified log", style="Dash.Secondary.TButton", command=self._open_unified_log).pack(
+            side="left", padx=(8, 0))
+        ttk.Button(ci, text="Copy for support", style="Dash.Secondary.TButton", command=self._copy_for_support).pack(
+            side="left", padx=(8, 0))
+        ttk.Button(ci, text="\u27f3  Refresh", style="Dash.Secondary.TButton", command=self.refresh_once).pack(
+            side="left", padx=(8, 0))
+        lg["view"], vf = self._dcard(o)
+        fr = tk.Frame(vf, bg=D_SURFACE)
+        fr.pack(fill="x")
+        self._dlabel(fr, "Filter", fg=D_MUTED).pack(side="left")
+        ent = ttk.Entry(fr, textvariable=self.log_filter_var, font=F_BODY, width=1)
+        ent.pack(side="left", fill="x", expand=True, padx=(8, 8), ipady=4)
+        ttk.Button(fr, text="\u2715", width=3, style="Dash.Secondary.TButton",
+                   command=lambda: self.log_filter_var.set("")).pack(side="left")
+        self.log_filter_var.trace_add("write", lambda *_a: self.after_idle(self._load_log_tail))
+        self._dlabel(vf, textvariable=self.logs_hint_var, fg=D_MUTED, clip=True).pack(fill="x", pady=(8, 0))
+        shell, self.log_text = self._textview(vf, wrap="none", height=20)
+        shell.pack(fill="both", expand=True, pady=(8, 0))
+        for w in (lg["chip"], lg["ctrl"], lg["view"]):
+            w.lift()
+        self._page_layouts.append(self._layout_logs)
+        self._layout_logs(compact=False)
 
-        filter_row = tk.Frame(wrap, bg=BG_MAIN)
-        filter_row.pack(fill="x", pady=(0, 10))
-        self._body_label(filter_row, textvariable=self.log_status_var, fg=ACCENT_MINT, mono=True, size=10, bold=True).pack(side="right")
-        tk.Entry(
-            filter_row,
-            textvariable=self.log_filter_var,
-            width=36,
-            bg=FIELD_BG,
-            fg=FG,
-            insertbackground=FG,
-            highlightthickness=1,
-            highlightbackground=CARD_BORDER,
-        ).pack(side="right", padx=(0, 14))
-        self._body_label(filter_row, "Filter log content", fg=FG_DIM, size=10).pack(side="right", padx=(0, 8))
+    def _layout_logs(self, *, compact: bool) -> None:
+        lg = self._lg
+        o = lg["outer"]
+        self._forget(*self._header_parts(lg["hdr"]), lg["chip"], lg["ctrl"], lg["view"])
+        if not compact:
+            self._pack_header(lg["hdr"], o, right=lg["chip"])
+            lg["ctrl"].pack(in_=o, fill="x", pady=(0, 12))
+        else:
+            self._pack_header(lg["hdr"], o, sub_in_crumb=True, title_extra=lg["chip"], right=lg["ctrl"], right_fill=True)
+        lg["view"].pack(in_=o, fill="both", expand=True)
+        self.log_text.configure(height=40 if not compact else 22)
 
-        card = self._card(wrap, expand=True)
-        f = tk.Frame(card, bg=BG_CARD)
-        f.pack(fill="both", expand=True, padx=0, pady=0)
-        self._body_label(f, textvariable=self.logs_hint_var, fg=FG_DIM, size=10, wraplength=1000).pack(anchor="w", padx=18, pady=(14, 8))
-        log_shell = tk.Frame(f, bg=BG_CARD)
-        log_shell.pack(fill="both", expand=True, padx=18, pady=(0, 18))
-        self.log_text = tk.Text(
-            log_shell,
-            wrap="none",
-            height=28,
-            bg=SURFACE_INK,
-            fg=FG,
-            insertbackground=FG,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=CARD_BORDER,
-            font=(FONT_MONO, 10),
-        )
-        self._attach_scrollbars(self.log_text, log_shell)
+    def _color_log_lines(self, widget: tk.Text) -> None:
+        for tag in ("warn", "error", "debug"):
+            widget.tag_remove(tag, "1.0", "end")
+        try:
+            n = int(widget.index("end-1c").split(".")[0])
+        except (tk.TclError, ValueError):
+            return
+        for i in range(1, n + 1):
+            line = widget.get(f"{i}.0", f"{i}.end").lower()
+            if "error" in line or "failed" in line or "traceback" in line:
+                widget.tag_add("error", f"{i}.0", f"{i}.end")
+            elif "warn" in line or "stalled" in line:
+                widget.tag_add("warn", f"{i}.0", f"{i}.end")
+            elif "debug" in line:
+                widget.tag_add("debug", f"{i}.0", f"{i}.end")
 
+    # ---------- Live Transcribe (spec 6) ----------
     def _build_page_live_transcribe(self, parent: tk.Frame) -> None:
-        wrap = tk.Frame(parent, bg=BG_MAIN)
-        wrap.pack(fill="both", expand=True)
-        top = tk.Frame(wrap, bg=BG_MAIN)
-        top.pack(fill="x", pady=(0, 14))
-        self._section_title(
-            top,
-            "SYSTEM / LIVE TRANSCRIBE",
-            "Live Transcribe",
-            "Real-time segment stream from Whisper while the current job is being decoded.",
-        )
-        actions = tk.Frame(top, bg=BG_MAIN)
-        actions.pack(anchor="e", pady=(8, 0))
-        ttk.Button(
-            actions,
-            text="Open raw stream",
-            command=lambda: open_path(self._watch_dir() / "whisper_live.log"),
-        ).pack(side="left")
-        ttk.Button(actions, text="Refresh", style="Accent.TButton", command=self.refresh_once).pack(
-            side="left", padx=(12, 0)
-        )
+        o = tk.Frame(parent, bg=D_BG)
+        o.pack(fill="both", expand=True)
+        lt = self._lt = {"outer": o}
+        lt["hdr"] = self._page_header(o, "SYSTEM / LIVE TRANSCRIBE", "Live Transcribe",
+                                      "Whisper segments for the file being decoded, newest first")
+        lt["now"], nf = self._dcard(o)
+        nh = tk.Frame(nf, bg=D_SURFACE)
+        nh.pack(fill="x")
+        self._dlabel(nh, textvariable=self.live_name_var, font=F_SECTION, clip=True).pack(side="left", fill="x", expand=True)
+        ttk.Button(nh, text="\u27f3  Refresh", style="Dash.Secondary.TButton", command=self.refresh_once).pack(side="right")
+        ttk.Button(nh, text="Open raw stream", style="Dash.Secondary.TButton",
+                   command=lambda: open_path(self._watch_dir() / "whisper_live.log")).pack(side="right", padx=(0, 8))
+        self.lt_chip = self._chip(nh, "IDLE", kind="muted")
+        self.lt_chip.pack(side="right", padx=(8, 8))
+        pr = tk.Frame(nf, bg=D_SURFACE)
+        pr.pack(fill="x", pady=(8, 0))
+        self._dlabel(pr, textvariable=self.live_pct_var, font=F_VALUE, fg=D_ACCENT, clip=False).pack(side="right", padx=(8, 0))
+        bar2 = MiniBar(pr, fill=D_ACCENT, bg=D_SURFACE)
+        bar2.pack(side="left", fill="x", expand=True)
+        self._live_bars.append(bar2)
+        self._dlabel(nf, textvariable=self.live_detail_var, fg=D_MUTED, clip=True).pack(fill="x", pady=(8, 0))
+        lt["stream"], sf = self._dcard(o)
+        sh = tk.Frame(sf, bg=D_SURFACE)
+        sh.pack(fill="x")
+        self._dlabel(sh, "Segment stream", font=F_SECTION).pack(side="left")
+        self.lt_wrap_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(sh, text="Word wrap", variable=self.lt_wrap_var, style="Screen.TCheckbutton",
+                        command=lambda: self.live_transcribe_text.configure(
+                            wrap="word" if self.lt_wrap_var.get() else "none")).pack(side="right")
+        self._dlabel(sh, "whisper_live.log", font=F_VALUE, fg=D_MUTED).pack(side="right", padx=(0, 8))
+        self._dlabel(sf, textvariable=self.live_transcribe_hint_var, fg=D_MUTED, clip=True).pack(fill="x", pady=(8, 0))
+        shell, self.live_transcribe_text = self._textview(sf, wrap="none", height=20)
+        self.live_transcribe_text.configure(wrap="word")
+        shell.pack(fill="both", expand=True, pady=(8, 0))
+        for w in (lt["now"], lt["stream"]):
+            w.lift()
+        self._page_layouts.append(self._layout_live)
+        self._layout_live(compact=False)
 
-        card = self._card(wrap, expand=True)
-        f = tk.Frame(card, bg=BG_CARD)
-        f.pack(fill="both", expand=True, padx=0, pady=0)
-        self._body_label(
-            f,
-            textvariable=self.live_transcribe_hint_var,
-            fg=FG_DIM,
-            size=10,
-            wraplength=1000,
-        ).pack(anchor="w", padx=18, pady=(14, 8))
-        shell = tk.Frame(f, bg=BG_CARD)
-        shell.pack(fill="both", expand=True, padx=18, pady=(0, 18))
-        self.live_transcribe_text = tk.Text(
-            shell,
-            wrap="none",
-            height=28,
-            bg=SURFACE_INK,
-            fg=FG,
-            insertbackground=FG,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=CARD_BORDER,
-            font=(FONT_MONO, 10),
-        )
-        self._attach_scrollbars(self.live_transcribe_text, shell)
+    def _layout_live(self, *, compact: bool) -> None:
+        lt = self._lt
+        o = lt["outer"]
+        self._forget(*self._header_parts(lt["hdr"]), lt["now"], lt["stream"])
+        self._pack_header(lt["hdr"], o)
+        lt["now"].pack(in_=o, fill="x", pady=(0, 12))
+        lt["stream"].pack(in_=o, fill="both", expand=True)
+        self.live_transcribe_text.configure(height=38 if not compact else 18)
+
+    # ---------- Handoff (spec 7) ----------
+    HANDOFF_FLAGS = (
+        ("ASK_EACH_TIME", "post_transcript_always_ask", False),
+        ("LLM_API_FIRST", "handoff_try_api_first", False),
+        ("RESUME_ON_START", "resume_on_start", True),
+        ("SKIP_DUPLICATES", "skip_duplicates", True),
+    )
 
     def _build_page_handoff(self, parent: tk.Frame) -> None:
-        wrap = tk.Frame(parent, bg=BG_MAIN)
-        wrap.pack(fill="both", expand=True)
-        top = tk.Frame(wrap, bg=BG_MAIN)
-        top.pack(fill="x", pady=(0, 14))
-        self._section_title(
-            top,
-            "PIPELINE_MODULE_04",
-            "Post-Transcript Routing",
-            "Configure automated downstream delivery for processed Whisper transcription data.",
-        )
+        o = tk.Frame(parent, bg=D_BG)
+        o.pack(fill="both", expand=True)
+        h = self._h = {"outer": o}
+        h["hdr"] = self._page_header(o, "HANDOFF / ROUTING", "Post-Transcript Routing",
+                                     "Send finished transcripts to NotebookLM or an LLM")
+        h["badge"] = self._badge(o)
+        h["primary"], pf = self._dcard(o)
+        row = self._card_header(pf, "Primary Destination")
+        self._chip(row, kind="accent", textvariable=self.handoff_destination_var).pack(side="right")
+        acts = tk.Frame(pf, bg=D_SURFACE)
+        acts.pack(fill="x", pady=(12, 0))
+        ttk.Button(acts, text="Send last completed transcript", style="Dash.Primary.TButton",
+                   command=self._open_handoff).pack(side="left")
+        ttk.Button(acts, text="Open NotebookLM staging", style="Dash.Secondary.TButton",
+                   command=lambda: handoff_open_folder(self._watch_dir() / "staged_for_notebooklm")).pack(side="left", padx=(8, 0))
+        ttk.Button(acts, text="Open videos folder", style="Dash.Secondary.TButton",
+                   command=lambda: open_path(self._completed_dir())).pack(side="left", padx=(8, 0))
+        h["diag"], dfm = self._dcard(o)
+        row = self._card_header(dfm, "Endpoint diagnostics")
+        self._chip(row, "READ-ONLY", kind="muted").pack(side="right")
+        kv = tk.Frame(dfm, bg=D_SURFACE)
+        kv.pack(fill="x", pady=(12, 0))
+        kv.columnconfigure(1, weight=1)
+        self.handoff_diag_vars: dict[str, tk.StringVar] = {}
+        rows = [("watch_dir", str(self._watch_dir())), ("staging_dir", str(self._watch_dir() / "staged_for_notebooklm")),
+                ("notebooklm", "manual browser upload / clipboard workflow"),
+                ("default_provider", str(self._settings.get("default_llm_provider", "chatgpt")))]
+        for r, (key, value) in enumerate(rows):
+            tk.Label(kv, text=key, font=F_LABEL, fg=D_MUTED, bg=D_SURFACE, anchor="w", width=1).grid(
+                row=r, column=0, sticky="ew", pady=(0 if r == 0 else 4, 0), ipadx=56)
+            var = tk.StringVar(value=value)
+            self.handoff_diag_vars[key] = var
+            tk.Entry(kv, textvariable=var, state="readonly", readonlybackground=D_SURFACE, fg=D_TEXT, relief="flat",
+                     bd=0, highlightthickness=0, font=F_VALUE, width=1).grid(row=r, column=1, sticky="ew",
+                                                                              pady=(0 if r == 0 else 4, 0))
+        h["fmt"], ff = self._dcard(o)
+        row = self._card_header(ff, "Default Formatting")
+        self._chip(row, kind="success", textvariable=self.handoff_format_var).pack(side="right")
+        self._wrap_label(self._dlabel(ff, "Raw text, structured JSON and summary flows all stay available in the "
+                                          "routing dialog.", fg=D_MUTED)).pack(fill="x", pady=(12, 0))
+        fa = tk.Frame(ff, bg=D_SURFACE)
+        fa.pack(fill="x", pady=(12, 0))
+        ttk.Button(fa, text="Open transcripts", style="Dash.Secondary.TButton",
+                   command=lambda: open_path(self._transcript_dir())).pack(side="left")
+        ttk.Button(fa, text="Open JSON", style="Dash.Secondary.TButton",
+                   command=lambda: open_path(self._json_dir())).pack(side="left", padx=(8, 0))
+        h["flags"], flf = self._dcard(o)
+        row = self._card_header(flf, "Handoff flags")
+        self._dlabel(row, "Status only, not clickable", fg=D_MUTED).pack(side="right")
+        chips = tk.Frame(flf, bg=D_SURFACE)
+        chips.pack(fill="x", pady=(12, 0))
+        self._handoff_flag_chips: dict[str, tk.Frame] = {}
+        items = [name for name, _k, _d in self.HANDOFF_FLAGS] + ["CPU_RETRY_ON_CRASH"]
+        for i, name in enumerate(items):
+            c = self._chip(chips, f"{name} \u00b7 \u2014", kind="off")
+            c.grid(row=i // 2, column=i % 2, sticky="w", padx=(0, 8), pady=(0, 8))
+            self._handoff_flag_chips[name] = c
+        self._refresh_handoff_flags()
+        h["cols"] = tk.Frame(o, bg=D_BG)
+        h["left"] = tk.Frame(o, bg=D_BG)
+        h["right"] = tk.Frame(o, bg=D_BG)
+        h["lower"] = tk.Frame(o, bg=D_BG)
+        for w in (h["primary"], h["diag"], h["fmt"], h["flags"], h["badge"]):
+            w.lift()
+        self._page_layouts.append(self._layout_handoff)
+        self._layout_handoff(compact=False)
 
-        grid = tk.Frame(wrap, bg=BG_MAIN)
-        grid.pack(fill="both", expand=True)
-        grid.columnconfigure(0, weight=2)
-        grid.columnconfigure(1, weight=1)
+    def _refresh_handoff_flags(self) -> None:
+        chips = getattr(self, "_handoff_flag_chips", None)
+        if not chips:
+            return
+        s = self._settings or {}
+        for name, key, default in self.HANDOFF_FLAGS:
+            on = bool(s.get(key, default))
+            self._set_chip(chips[name], "success" if on else "off", f"{name} \u00b7 {'ON' if on else 'OFF'}")
+        # Built into the watcher: a crashed worker is retried once on CPU (no setting).
+        self._set_chip(chips["CPU_RETRY_ON_CRASH"], "success", "CPU_RETRY_ON_CRASH \u00b7 ON")
+        for key, var in getattr(self, "handoff_diag_vars", {}).items():
+            if key == "default_provider":
+                var.set(str(s.get("default_llm_provider", "chatgpt")))
 
-        primary = self._card(grid, autopack=False)
-        primary.grid(row=0, column=0, sticky="nsew", padx=(0, 12), pady=(0, 12))
-        pf = tk.Frame(primary, bg=BG_CARD)
-        pf.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(pf, "Primary Destination", size=18, fg=FG).pack(anchor="w")
-        self._body_label(pf, textvariable=self.handoff_destination_var, mono=True, fg=ACCENT, size=10, bold=True).pack(anchor="e")
-        btns = tk.Frame(pf, bg=BG_CARD)
-        btns.pack(fill="x", pady=(12, 12))
-        ttk.Button(btns, text="Send last completed transcript", style="Accent.TButton", command=self._open_handoff).pack(side="left")
-        ttk.Button(btns, text="Open NotebookLM staging", command=lambda: handoff_open_folder(self._watch_dir() / "staged_for_notebooklm")).pack(side="left", padx=(12, 0))
-        ttk.Button(btns, text="Open videos folder", command=lambda: open_path(self._completed_dir())).pack(side="left", padx=(12, 0))
-        diag = tk.Text(
-            pf,
-            height=7,
-            bg=SURFACE_INK,
-            fg=FG,
-            insertbackground=FG,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=CARD_BORDER,
-            font=(FONT_MONO, 10),
-        )
-        diag.pack(fill="both", expand=True)
-        self._set_text(
-            diag,
-            "\n".join(
-                [
-                    "ENDPOINT_DIAGNOSTICS",
-                    f"watch_dir: {self._watch_dir()}",
-                    f"staging_dir: {self._watch_dir() / 'staged_for_notebooklm'}",
-                    "notebooklm: manual browser upload / clipboard workflow",
-                    f"default_provider: {self._settings.get('default_llm_provider', 'chatgpt')}",
-                ]
-            ),
-        )
+    def _layout_handoff(self, *, compact: bool) -> None:
+        h = self._h
+        o = h["outer"]
+        self._forget(*self._header_parts(h["hdr"]), h["badge"], h["primary"], h["diag"], h["fmt"], h["flags"],
+                     h["cols"], h["left"], h["right"], h["lower"])
+        self._pack_header(h["hdr"], o, right=h["badge"])
+        if not compact:
+            h["primary"].pack(in_=o, fill="x", pady=(0, 12))
+            h["diag"].pack(in_=o, fill="x", pady=(0, 12))
+            h["lower"].pack(in_=o, fill="x")
+            h["lower"].columnconfigure(0, weight=1, uniform="hl")
+            h["lower"].columnconfigure(1, weight=1, uniform="hl")
+            h["fmt"].grid(in_=h["lower"], row=0, column=0, sticky="nsew", padx=(0, 6))
+            h["flags"].grid(in_=h["lower"], row=0, column=1, sticky="nsew", padx=(6, 0))
+        else:
+            h["cols"].pack(in_=o, fill="x")
+            h["cols"].columnconfigure(0, weight=1)
+            h["cols"].columnconfigure(1, minsize=420)
+            h["left"].grid(in_=h["cols"], row=0, column=0, sticky="nsew", padx=(0, 12))
+            h["right"].grid(in_=h["cols"], row=0, column=1, sticky="nsew")
+            h["primary"].pack(in_=h["left"], fill="x", pady=(0, 12))
+            h["diag"].pack(in_=h["left"], fill="x")
+            h["fmt"].pack(in_=h["right"], fill="x", pady=(0, 12))
+            h["flags"].pack(in_=h["right"], fill="x")
 
-        side = self._card(grid, autopack=False)
-        side.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
-        sf = tk.Frame(side, bg=BG_CARD)
-        sf.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(sf, "Default Formatting", size=18, fg=FG).pack(anchor="w")
-        self._body_label(sf, textvariable=self.handoff_format_var, mono=True, fg=ACCENT_MINT, size=10, bold=True).pack(anchor="w", pady=(10, 0))
-        self._body_label(sf, "Raw text, structured JSON, and summary flows all remain available through the routing dialog.", fg=FG_DIM, size=10, wraplength=280).pack(anchor="w", pady=(8, 14))
-        ttk.Button(sf, text="Open transcripts", command=lambda: open_path(self._transcript_dir())).pack(anchor="w")
-        ttk.Button(sf, text="Open JSON", command=lambda: open_path(self._json_dir())).pack(anchor="w", pady=(10, 0))
-
-        bottom = self._card(wrap)
-        bottom.pack(fill="x")
-        bf = tk.Frame(bottom, bg=BG_CARD)
-        bf.pack(fill="x", padx=18, pady=18)
-        self._body_label(bf, "SYSTEM_FLAGS", mono=True, fg=FG_DIM, size=10, bold=True).pack(anchor="w")
-        flag_row = tk.Frame(bf, bg=BG_CARD)
-        flag_row.pack(fill="x", pady=(12, 0))
-        for text in ("APPEND_TIMESTAMPS", "AUTO_RETRY_ON_FAIL", "NOTIFY_MOBILE_APP", "STRIP_SPEAKER_IDS"):
-            tk.Label(
-                flag_row,
-                text=text,
-                bg=FIELD_BG,
-                fg=ACCENT if text == "AUTO_RETRY_ON_FAIL" else FG,
-                font=(FONT_MONO, 10, "bold"),
-                padx=12,
-                pady=8,
-                highlightthickness=1,
-                highlightbackground=CARD_BORDER,
-            ).pack(side="left", padx=(0, 10))
-
-    # ---------- Search ----------
+    # ---------- Search (spec 8) ----------
     def _search_dirs(self) -> dict:
         return resolved_output_dirs(ROOT, self._settings)
 
     def _build_page_search(self, parent: tk.Frame) -> None:
-        wrap = tk.Frame(parent, bg=BG_MAIN)
-        wrap.pack(fill="both", expand=True)
-        top = tk.Frame(wrap, bg=BG_MAIN)
-        top.pack(fill="x", pady=(0, 14))
-        self._section_title(top, "TRANSCRIPTS / SEARCH", "Search Transcripts",
-                            "Find a word or \"exact phrase\" in every transcript. Double-click a hit to play the video at that moment.")
-        row = tk.Frame(wrap, bg=BG_MAIN)
-        row.pack(fill="x", pady=(0, 10))
+        o = tk.Frame(parent, bg=D_BG)
+        o.pack(fill="both", expand=True)
+        s = self._s = {"outer": o}
+        s["hdr"] = self._page_header(o, "TRANSCRIPTS / SEARCH", "Search Transcripts", "A word or \"exact phrase\" in every transcript")
         self.search_var = tk.StringVar()
         self.search_status_var = tk.StringVar(value="")
-        ent = tk.Entry(row, textvariable=self.search_var, width=50, bg=FIELD_BG, fg=FG, insertbackground=FG,
-                       highlightthickness=1, highlightbackground=CARD_BORDER, font=(FONT_MONO, 11))
-        ent.pack(side="left", ipady=4)
+        self.search_index_var = tk.StringVar(value="")
+        s["bar"], bi = self._control_bar(o)
+        ent = ttk.Entry(bi, textvariable=self.search_var, font=F_VALUE, width=1)
+        ent.pack(side="left", fill="x", expand=True, ipady=4)
         ent.bind("<Return>", lambda _e: self._run_search())
-        ttk.Button(row, text="Search", style="Accent.TButton", command=self._run_search).pack(side="left", padx=(10, 0))
-        ttk.Button(row, text="Play at time", command=self._search_open_video).pack(side="left", padx=(10, 0))
-        ttk.Button(row, text="Open transcript", command=self._search_open_transcript).pack(side="left", padx=(10, 0))
-        ttk.Button(row, text="Rebuild index", command=self._search_rebuild).pack(side="left", padx=(10, 0))
-        self._body_label(row, textvariable=self.search_status_var, fg=ACCENT_MINT, mono=True, size=10).pack(side="right")
-        card = self._card(wrap, expand=True)
-        shell = tk.Frame(card, bg=BG_CARD)
-        shell.pack(fill="both", expand=True, padx=18, pady=18)
-        cols = ("video", "time", "context")
-        self.search_tree = ttk.Treeview(shell, columns=cols, show="headings", height=20)
-        for c, w, label in (("video", 320, "Video"), ("time", 80, "Time"), ("context", 760, "Context")):
-            self.search_tree.heading(c, text=label)
-            self.search_tree.column(c, width=w, anchor="w", stretch=(c == "context"))
-        self.search_tree.pack(side="left", fill="both", expand=True)
-        sb = ttk.Scrollbar(shell, orient="vertical", command=self.search_tree.yview)
-        sb.pack(side="right", fill="y")
-        self.search_tree.configure(yscrollcommand=sb.set)
+        ttk.Button(bi, text="Search", style="Dash.Primary.TButton", command=self._run_search).pack(side="left", padx=(8, 0))
+        ttk.Button(bi, text="Rebuild index", style="Dash.Secondary.TButton", command=self._search_rebuild).pack(
+            side="left", padx=(8, 0))
+        s["results"], rf = self._dcard(o)
+        rh = tk.Frame(rf, bg=D_SURFACE)
+        rh.pack(fill="x")
+        self._dlabel(rh, textvariable=self.search_status_var, font=F_VALUE, fg=D_SUCCESS).pack(side="left")
+        self.search_open_btn = ttk.Button(rh, text="Open transcript", style="Dash.Secondary.TButton",
+                                          command=self._search_open_transcript)
+        self.search_open_btn.pack(side="right")
+        self.search_play_btn = ttk.Button(rh, text="\u25b6  Play at time", style="Dash.Primary.TButton",
+                                          command=self._search_open_video)
+        self.search_play_btn.pack(side="right", padx=(0, 8))
+        self._dlabel(rh, textvariable=self.search_index_var, font=F_VALUE, fg=D_MUTED, clip=True).pack(
+            side="left", fill="x", expand=True, padx=(12, 12))
+        self._dlabel(rf, "Double-click a hit to play the video at that moment. Select a row to open its transcript.",
+                     fg=D_MUTED, clip=True).pack(fill="x", pady=(8, 0))
+        s["table"], self.search_tree = self._table(rf, [("video", "Video"), ("time", "Time"), ("context", "Context")], height=20)
+        self.search_tree.column("time", anchor="e")
+        s["table"].pack(fill="both", expand=True, pady=(8, 0))
         self.search_tree.bind("<Double-1>", lambda _e: self._search_open_video())
+        self.search_tree.bind("<<TreeviewSelect>>", lambda _e: self._search_buttons())
         self._search_hits: dict[str, dict] = {}
+        self._search_buttons()
         try:
             n, segs = transcript_search.stats()
-            self.search_status_var.set(f"{n} transcripts, {segs} segments indexed")
+            self.search_index_var.set(f"index: {n} transcripts, {segs} segments")
         except Exception as exc:
-            self.search_status_var.set(f"index unavailable: {exc}")
+            self.search_index_var.set(f"index unavailable: {exc}")
+        for w in (s["bar"], s["results"]):
+            w.lift()
+        self._page_layouts.append(self._layout_search)
+        self._layout_search(compact=False)
+
+    def _search_buttons(self) -> None:
+        state = ["!disabled"] if self.search_tree.selection() else ["disabled"]
+        for b in (self.search_play_btn, self.search_open_btn):
+            b.state(state)
+
+    def _layout_search(self, *, compact: bool) -> None:
+        s = self._s
+        o = s["outer"]
+        self._forget(*self._header_parts(s["hdr"]), s["bar"], s["results"])
+        self._pack_header(s["hdr"], o)
+        s["bar"].pack(in_=o, fill="x", pady=(0, 12))
+        s["results"].pack(in_=o, fill="both", expand=True)
+        if not compact:
+            self.search_tree.configure(height=29)
+            self._set_columns(self.search_tree, {"video": 232, "time": 80, "context": 456})
+        else:
+            self.search_tree.configure(height=16)
+            self._set_columns(self.search_tree, {"video": 280, "time": 80, "context": 688})
+
+    # ---------- Review (spec 9; Prev/Next flag + progress are proposals, not built) ----------
+    def _build_page_review(self, parent: tk.Frame) -> None:
+        o = tk.Frame(parent, bg=D_BG)
+        o.pack(fill="both", expand=True)
+        r = self._r = {"outer": o}
+        r["hdr"] = self._page_header(o, "TRANSCRIPTS / REVIEW", "Review Flagged Spots",
+                                     "Play the audio, fix the text, save; the original is kept")
+        self.review_stem_var = tk.StringVar()
+        self.review_status_var = tk.StringVar(value="")
+        r["bar"], bi = self._control_bar(o)
+        self._dlabel(bi, "Transcript", fg=D_MUTED).pack(side="left")
+        self.review_combo = ttk.Combobox(bi, textvariable=self.review_stem_var, state="readonly", width=1,
+                                         style="Screen.TCombobox", font=F_BODY)
+        self.review_combo.pack(side="left", fill="x", expand=True, padx=(8, 8))
+        self.review_combo.bind("<<ComboboxSelected>>", lambda _e: self._review_load_flags())
+        ttk.Button(bi, text="\u27f3  Refresh list", style="Dash.Secondary.TButton", command=self._review_refresh_list).pack(side="left")
+        self._dlabel(bi, textvariable=self.review_status_var, font=F_VALUE, fg=D_SUCCESS, clip=True).pack(
+            side="left", padx=(8, 0))
+        self._review_status_lbl = bi.winfo_children()[-1]
+        # amber missed-audio strip (spec 12)
+        r["warn"] = tk.Frame(o, bg=D_WARNING_SURFACE, highlightthickness=1, highlightbackground=D_WARNING)
+        wi = tk.Frame(r["warn"], bg=D_WARNING_SURFACE)
+        wi.pack(fill="x", padx=(12, 8), pady=7)
+        tk.Label(wi, text="\u26a0", font=F_SECTION, fg=D_WARNING, bg=D_WARNING_SURFACE).pack(side="left")
+        self.review_warn_title = tk.StringVar(value="")
+        self.review_warn_detail = tk.StringVar(value="")
+        tk.Label(wi, textvariable=self.review_warn_title, font=F_NAV, fg=D_WARNING, bg=D_WARNING_SURFACE).pack(side="left", padx=(8, 0))
+        ttk.Button(wi, text="Jump to spot", style="Dash.Warning.TButton", command=self._review_jump_coverage).pack(side="right")
+        self._dlabel(wi, textvariable=self.review_warn_detail, fg=D_MUTED, clip=True).pack(side="left", fill="x", expand=True, padx=(8, 8))
+        wi.winfo_children()[-1].configure(bg=D_WARNING_SURFACE)
+        # flags table
+        r["flags"], ff = self._dcard(o)
+        fh = tk.Frame(ff, bg=D_SURFACE)
+        fh.pack(fill="x")
+        self._dlabel(fh, "Flagged spots", font=F_SECTION).pack(side="left")
+        self.review_progress_var = tk.StringVar(value="")
+        self._dlabel(fh, textvariable=self.review_progress_var, font=F_VALUE, fg=D_MUTED).pack(side="right")
+        self._dlabel(ff, "Select a row to edit it. Double-click plays the audio there.", fg=D_MUTED, clip=True).pack(fill="x", pady=(8, 0))
+        r["table"], self.review_tree = self._table(ff, [("time", "Time"), ("state", "State"), ("reason", "Why flagged"),
+                                                         ("text", "Text")], height=14)
+        r["table"].pack(fill="both", expand=True, pady=(8, 0))
+        self.review_tree.bind("<<TreeviewSelect>>", lambda _e: self._review_select())
+        self.review_tree.bind("<Double-1>", lambda _e: self._review_play())
+        # editor
+        r["editor"], ef = self._dcard(o)
+        eh = tk.Frame(ef, bg=D_SURFACE)
+        eh.pack(fill="x")
+        self._dlabel(eh, "Edit selected spot", font=F_SECTION).pack(side="left")
+        self.review_chip = self._chip(eh, "NO SELECTION", kind="off")
+        self.review_chip.pack(side="right")
+        self.review_orig_var = tk.StringVar(value="Select a row in the table to edit it.")
+        self.review_why_var = tk.StringVar(value="")
+        r["lines"] = []
+        for key, var in (("Original", self.review_orig_var), ("Why flagged", self.review_why_var)):
+            line = tk.Frame(ef, bg=D_SURFACE)
+            line.pack(fill="x", pady=(8, 0))
+            k = tk.Label(line, text=key, font=F_LABEL, fg=D_MUTED, bg=D_SURFACE, anchor="nw", width=1)
+            k.pack(side="left", ipadx=40, anchor="n")
+            v = self._wrap_label(self._dlabel(line, textvariable=var))
+            v.pack(side="left", fill="x", expand=True, padx=(8, 0))
+        self._dlabel(ef, "Correction", font=F_LABEL, fg=D_MUTED).pack(fill="x", pady=(8, 0))
+        box = tk.Frame(ef, bg=D_INPUT, highlightthickness=1, highlightbackground=D_BORDER, highlightcolor=D_ACCENT)
+        box.pack(fill="x", pady=(8, 0))
+        self.review_text = tk.Text(box, height=4, width=1, wrap="word", bg=D_INPUT, fg=D_TEXT, insertbackground=D_TEXT,
+                                   relief="flat", bd=0, highlightthickness=0, font=F_VALUE)
+        self.review_text.pack(fill="x", padx=8, pady=8)
+        self.review_text.bind("<FocusIn>", lambda _e: box.configure(highlightbackground=D_ACCENT))
+        self.review_text.bind("<FocusOut>", lambda _e: box.configure(highlightbackground=D_BORDER))
+        r["acts1"] = tk.Frame(ef, bg=D_SURFACE)
+        r["acts2"] = tk.Frame(ef, bg=D_SURFACE)
+        self.review_btns = {
+            "play": ttk.Button(ef, text="\u25b6  Play snippet", style="Dash.Secondary.TButton", command=self._review_play),
+            "revert": ttk.Button(ef, text="Revert to original", style="Dash.Secondary.TButton", command=self._review_revert),
+            "ok": ttk.Button(ef, text="Mark OK", style="Dash.Secondary.TButton", command=self._review_mark_ok),
+            "save": ttk.Button(ef, text="Save correction", style="Dash.Primary.TButton", command=self._review_save),
+        }
+        r["hint"] = self._wrap_label(self._dlabel(ef, "Saving updates the .txt, .csv, subtitles and search index. "
+                                                      "The original text is kept.", fg=D_MUTED))
+        self._review_items: dict[str, dict] = {}
+        self._review_index: dict[str, dict] = {}
+        r["cols"] = tk.Frame(o, bg=D_BG)
+        for w in (r["bar"], r["warn"], r["flags"], r["editor"], r["acts1"], r["acts2"], *self.review_btns.values(), r["hint"]):
+            w.lift()
+        self._page_layouts.append(self._layout_review)
+        self._layout_review(compact=False)
+        self._review_editor_state(None)
+        self._review_refresh_list()
+
+    def _layout_review(self, *, compact: bool) -> None:
+        r = self._r
+        o = r["outer"]
+        warn_shown = bool(self.review_warn_title.get())
+        b = self.review_btns
+        self._forget(*self._header_parts(r["hdr"]), r["bar"], r["warn"], r["flags"], r["editor"], r["cols"],
+                     r["acts1"], r["acts2"], *b.values(), r["hint"])
+        self._pack_header(r["hdr"], o)
+        r["bar"].pack(in_=o, fill="x", pady=(0, 12))
+        if warn_shown:
+            r["warn"].pack(in_=o, fill="x", pady=(0, 12))
+        ef = r["editor"].winfo_children()[0]
+        if not compact:
+            r["flags"].pack(in_=o, fill="both", expand=True, pady=(0, 12))
+            r["editor"].pack(in_=o, fill="x")
+            r["acts1"].pack(in_=ef, fill="x", pady=(8, 0))
+            b["play"].pack(in_=r["acts1"], side="left")
+            b["save"].pack(in_=r["acts1"], side="right")
+            b["ok"].pack(in_=r["acts1"], side="right", padx=(0, 8))
+            b["revert"].pack(in_=r["acts1"], side="right", padx=(0, 8))
+            self.review_tree.configure(height=15 if not warn_shown else 13)
+            self._set_columns(self.review_tree, {"time": 80, "state": 120, "reason": 232, "text": 336})
+        else:
+            r["cols"].pack(in_=o, fill="both", expand=True)
+            r["cols"].columnconfigure(0, weight=1)
+            r["cols"].columnconfigure(1, minsize=400)
+            r["cols"].rowconfigure(0, weight=1)
+            r["flags"].grid(in_=r["cols"], row=0, column=0, sticky="nsew", padx=(0, 12))
+            r["editor"].grid(in_=r["cols"], row=0, column=1, sticky="nsew")
+            r["acts1"].pack(in_=ef, fill="x", pady=(8, 0))
+            r["acts2"].pack(in_=ef, fill="x", pady=(8, 0))
+            b["play"].pack(in_=r["acts1"], side="left")
+            b["revert"].pack(in_=r["acts1"], side="right")
+            b["save"].pack(in_=r["acts2"], side="right")
+            b["ok"].pack(in_=r["acts2"], side="right", padx=(0, 8))
+            self.review_tree.configure(height=14 if not warn_shown else 12)
+            self._set_columns(self.review_tree, {"time": 80, "state": 112, "reason": 184, "text": 260})
+        r["hint"].pack(in_=ef, fill="x", pady=(8, 0))
+
+    def _review_editor_state(self, it: dict | None) -> None:
+        b = getattr(self, "review_btns", {})
+        if it is None:
+            for btn in b.values():
+                btn.state(["disabled"])
+            self._set_chip(self.review_chip, "off", "NO SELECTION")
+            return
+        cov = it.get("kind") in ("gap", "long_block")
+        b["play"].state(["!disabled"])
+        for k in ("revert", "ok", "save"):
+            b[k].state(["disabled"] if cov else ["!disabled"])
+        if cov:
+            self._set_chip(self.review_chip, "warning", "MISSED AUDIO" if it["kind"] == "gap" else "STRETCHED")
+        elif it.get("original_text") is not None:
+            self._set_chip(self.review_chip, "accent", "EDITED")
+        elif it.get("reviewed"):
+            self._set_chip(self.review_chip, "success", "OK")
+        else:
+            self._set_chip(self.review_chip, "warning", "TO REVIEW")
+
+    def _review_jump_coverage(self) -> None:
+        for iid, it in self._review_items.items():
+            if it.get("kind") in ("gap", "long_block"):
+                self.review_tree.selection_set(iid)
+                self.review_tree.see(iid)
+                self.review_tree.focus(iid)
+                return
+
+    # ---------- Settings (spec 10) ----------
+    SETTINGS_FIELDS = (
+        ("asr_engine", "Transcription engine"), ("whisper_gpu_model", "GPU Whisper model"),
+        ("whisper_cpu_model", "CPU Whisper model"), ("whisper_language", "Language"),
+        ("whisper_decode_profile", "Transcription profile"), ("coverage_max_block_s", "Coverage max block"),
+        ("coverage_max_gap_s", "Coverage max gap"), ("prefer_youtube_captions", "YouTube captions"),
+        ("whisper_batched", "Fast batched mode"), ("asr_crosscheck", "Voxtral cross-check"),
+        ("max_concurrent_jobs", "Max concurrent jobs"), ("heartbeat_seconds", "Heartbeat"),
+        ("stall_timeout_seconds", "Stall timeout"), ("start_scan_existing", "Scan-existing"),
+        ("skip_duplicates", "Skip duplicates"), ("handoff_try_api_first", "LLM API first"),
+        ("log_profile", "Log profile"), ("watch_dir", "Watch folder"), ("completed_video_dir", "Completed videos"),
+        ("completed_audio_dir", "Completed audio"), ("library", "Library location"),
+    )
+    PROFILE_HELP = {
+        "auto": "Transcribes normally; if the result has big gaps or stretched lines, redoes it once with music settings.",
+        "speech": "Speech filter on. Best for talks, lectures and podcasts.",
+        "music": "Speech filter off, for songs and music videos. Slower.",
+        "legacy": "The pre-1.2 decode settings, kept for comparison.",
+    }
+
+    def _settings_vars(self) -> dict:
+        return {
+            "asr_engine": self.set_asr_engine, "whisper_gpu_model": self.set_whisper_gpu,
+            "whisper_cpu_model": self.set_whisper_cpu, "whisper_language": self.set_whisper_language,
+            "whisper_decode_profile": self.set_whisper_profile, "coverage_max_block_s": self.set_cov_block,
+            "coverage_max_gap_s": self.set_cov_gap, "prefer_youtube_captions": self.set_prefer_captions,
+            "whisper_batched": self.set_whisper_batched, "asr_crosscheck": self.set_asr_crosscheck,
+            "max_concurrent_jobs": self.set_jobs, "heartbeat_seconds": self.set_hb,
+            "stall_timeout_seconds": self.set_stall, "start_scan_existing": self.set_scan,
+            "skip_duplicates": self.set_skip_duplicates, "handoff_try_api_first": self.set_handoff_api,
+            "log_profile": self.set_profile, "watch_dir": self.set_watch_dir, "completed_video_dir": self.set_completed_dir,
+            "completed_audio_dir": self.set_completed_audio_dir, "library": self.set_library_dir,
+        }
+
+    def _settings_snapshot(self) -> dict:
+        out = {}
+        for key, var in self._settings_vars().items():
+            try:
+                v = var.get()
+            except (tk.TclError, ValueError):
+                v = "\x00invalid"
+            out[key] = str(v).strip() if not isinstance(v, bool) else v
+        return out
+
+    def _settings_mark_clean(self) -> None:
+        self._settings_saved = self._settings_snapshot()
+        self._settings_dirty_update()
+
+    def _settings_dirty_update(self, *_a) -> None:
+        if not hasattr(self, "_settings_saved") or not hasattr(self, "_sb"):
+            return
+        now = self._settings_snapshot()
+        labels = dict(self.SETTINGS_FIELDS)
+        changed = [k for k in now if now[k] != self._settings_saved.get(k)]
+        for key, dot in self._settings_dots.items():
+            dot.configure(fg=D_WARNING if key in changed else dot.cget("bg"))
+        sb = self._sb
+        if changed:
+            sb["frame"].configure(highlightbackground=D_WARNING)
+            sb["icon"].configure(text="\u25cf", fg=D_WARNING)
+            sb["label"].configure(text=f"Unsaved changes ({len(changed)})", fg=D_WARNING)
+            sb["detail"].configure(text=", ".join(labels.get(k, k) for k in changed), fg=D_MUTED)
+            sb["discard"].state(["!disabled"])
+            sb["save"].state(["!disabled"])
+        else:
+            sb["frame"].configure(highlightbackground=D_BORDER)
+            sb["icon"].configure(text="\u2713", fg=D_SUCCESS)
+            sb["label"].configure(text="All changes saved", fg=D_SUCCESS)
+            when = getattr(self, "_settings_saved_at", None)
+            sb["detail"].configure(text=f"Saved to {settings_path(ROOT).name}" + (f" at {when}" if when else ""), fg=D_MUTED)
+            sb["discard"].state(["disabled"])
+            sb["save"].state(["disabled"])
+
+    def _build_page_settings(self, parent: tk.Frame) -> None:
+        page = self.pages["settings"]
+        o = tk.Frame(parent, bg=D_BG)
+        o.pack(fill="both", expand=True)
+        st = self._st = {"outer": o}
+        self.set_cov_block = tk.StringVar(value=str(self._settings.get("coverage_max_block_s", 30)))
+        self.set_cov_gap = tk.StringVar(value=str(self._settings.get("coverage_max_gap_s", 60)))
+        self._settings_dots: dict[str, tk.Label] = {}
+        self._settings_spins: dict[str, ttk.Spinbox] = {}
+        st["hdr"] = self._page_header(o, "SYSTEM / SETTINGS", "Settings", f"Saved in {settings_path(ROOT).name}; one Save for the page")
+        help_labels: list[tk.Label] = []
+
+        def field(parent: tk.Misc, key: str, label: str, make, help_text: str | None = None,
+                  help_var: tk.Variable | None = None, help_fg: str = D_MUTED, stacked: bool = False) -> tk.Frame:
+            f = tk.Frame(parent, bg=D_SURFACE)
+            f.pack(fill="x", pady=(12, 0))
+            row = tk.Frame(f, bg=D_SURFACE)
+            row.pack(fill="x")
+            lab = tk.Frame(row, bg=D_SURFACE, width=136, height=32)
+            dot = tk.Label(lab, text="\u25cf", font=("Segoe UI", -8), fg=D_SURFACE, bg=D_SURFACE)
+            dot.pack(side="left", padx=(0, 4))
+            self._settings_dots[key] = dot
+            tk.Label(lab, text=label, font=F_BODY, fg=D_TEXT, bg=D_SURFACE, anchor="w").pack(side="left")
+            if stacked:
+                lab.pack(side="top", fill="x")
+                ctl_parent = tk.Frame(f, bg=D_SURFACE)
+                ctl_parent.pack(fill="x", pady=(4, 0))
+            else:
+                lab.pack(side="left")
+                lab.pack_propagate(False)
+                ctl_parent = row
+            make(ctl_parent)
+            if help_text or help_var is not None:
+                hl = self._wrap_label(tk.Label(f, text=help_text or "", font=F_BODY, fg=help_fg, bg=D_SURFACE,
+                                               anchor="w", justify="left"))
+                if help_var is not None:
+                    hl.configure(textvariable=help_var)
+                hl.pack(fill="x", pady=(4, 0), padx=(0 if stacked else 144, 0))
+                help_labels.append(hl)
+            return f
+
+        def combo(var, values, readonly=True):
+            def make(p):
+                ttk.Combobox(p, textvariable=var, values=values, state="readonly" if readonly else "normal", width=1,
+                             style="Screen.TCombobox", font=F_BODY).pack(side="left", fill="x", expand=True)
+            return make
+
+        def spin(key, var, lo, hi, inc=1):
+            def make(p):
+                sp = ttk.Spinbox(p, textvariable=var, from_=lo, to=hi, increment=inc, width=8, style="Screen.TSpinbox",
+                                 font=F_BODY)
+                sp.pack(side="left")
+                self._settings_spins[key] = sp
+            return make
+
+        def check(parent, key, var, text, help_text=None):
+            f = tk.Frame(parent, bg=D_SURFACE)
+            f.pack(fill="x", pady=(12, 0))
+            row = tk.Frame(f, bg=D_SURFACE)
+            row.pack(fill="x")
+            ttk.Checkbutton(row, text=text, variable=var, style="Screen.TCheckbutton").pack(side="left")
+            dot = tk.Label(row, text="\u25cf", font=("Segoe UI", -8), fg=D_SURFACE, bg=D_SURFACE)
+            dot.pack(side="left", padx=(4, 0))
+            self._settings_dots[key] = dot
+            if help_text:
+                hl = self._wrap_label(tk.Label(f, text=help_text, font=F_BODY, fg=D_MUTED, bg=D_SURFACE, anchor="w",
+                                               justify="left"))
+                hl.pack(fill="x", pady=(4, 0), padx=(24, 0))
+
+        def folder(parent, key, var, label, help_text=None, readonly=False, browse=None):
+            def make(p):
+                e = ttk.Entry(p, textvariable=var, font=F_VALUE, width=1)
+                if readonly:
+                    e.configure(state="readonly")
+                e.pack(side="left", fill="x", expand=True, ipady=4)
+                if browse is not None:
+                    ttk.Button(p, text="Browse\u2026", style="Dash.Secondary.TButton", command=browse).pack(
+                        side="left", padx=(8, 0))
+            st.setdefault("folder_fields", []).append((key, label, make, help_text, parent))
+
+        models = ("tiny", "base", "small", "medium", "large-v2", "large-v3", "large-v3-turbo", "distil-large-v3")
+        # Transcription
+        st["tx"], tf = self._dcard(o)
+        self._dlabel(tf, "Transcription", font=F_SECTION).pack(fill="x")
+        field(tf, "asr_engine", "Transcription engine", combo(self.set_asr_engine, ("whisper", "voxtral-mini-3b", "granite-2b")),
+              "whisper runs locally on your GPU or CPU. voxtral-mini-3b and granite-2b are optional local speech models "
+              "(install them first).")
+        field(tf, "whisper_gpu_model", "GPU Whisper model", combo(self.set_whisper_gpu, models))
+        field(tf, "whisper_cpu_model", "CPU Whisper model", combo(self.set_whisper_cpu, models))
+        field(tf, "whisper_language", "Language", combo(self.set_whisper_language, ("auto", "en", "de", "es", "fr"), readonly=False),
+              "auto detects it, or type a code such as en.")
+        self._profile_help_var = tk.StringVar(value="")
+        field(tf, "whisper_decode_profile", "Transcription profile",
+              combo(self.set_whisper_profile, ("auto", "speech", "music", "legacy")), help_var=self._profile_help_var)
+        self.set_whisper_profile.trace_add("write", lambda *_a: self._profile_help_var.set(
+            self.PROFILE_HELP.get(self.set_whisper_profile.get(), "")))
+        self._profile_help_var.set(self.PROFILE_HELP.get(self.set_whisper_profile.get(), ""))
+        # Advanced overrides disclosure: coverage thresholds only (decode profile is the dropdown above)
+        disc = tk.Frame(tf, bg=D_SURFACE, cursor="hand2")
+        disc.pack(fill="x", pady=(12, 0))
+        self._adv_open = tk.BooleanVar(value=True)
+        chev = tk.Label(disc, text="\u25be", font=F_NAV, fg=D_ACCENT, bg=D_SURFACE)
+        chev.pack(side="left")
+        dl = tk.Label(disc, text="Advanced overrides", font=F_NAV, fg=D_ACCENT, bg=D_SURFACE)
+        dl.pack(side="left", padx=(8, 0))
+        self._adv_summary = tk.Label(disc, text="", font=F_BODY, fg=D_MUTED, bg=D_SURFACE, anchor="w", width=1)
+        self._adv_summary.pack(side="left", fill="x", expand=True, padx=(8, 0))
+        adv = tk.Frame(tf, bg=D_SURFACE)
+        advi = tk.Frame(adv, bg=D_SURFACE)
+        advi.pack(fill="x", padx=(24, 0))
+        field(advi, "coverage_max_block_s", "Max block (s)", spin("coverage_max_block_s", self.set_cov_block, 5, 3600))
+        field(advi, "coverage_max_gap_s", "Max gap (s)", spin("coverage_max_gap_s", self.set_cov_gap, 5, 3600),
+              "The missed-audio warning flags a line longer than max block or a silence longer than max gap.")
+        self._adv_frame = adv
+        self._adv_after = tk.Frame(tf, bg=D_BORDER, height=1)
+        self._adv_after.pack(fill="x", pady=(12, 0))
+
+        def toggle_adv(_e=None, force: bool | None = None) -> None:
+            open_ = (not self._adv_open.get()) if force is None else force
+            if _e is not None:
+                self._adv_user_toggled = True
+            self._adv_open.set(open_)
+            chev.configure(text="\u25be" if open_ else "\u25b8")
+            if open_:
+                adv.pack(fill="x", before=self._adv_after)
+            else:
+                adv.pack_forget()
+            self._adv_summary.configure(text=f"coverage {self.set_cov_block.get()} s / {self.set_cov_gap.get()} s")
+
+        for w in (disc, chev, dl, self._adv_summary):
+            w.bind("<Button-1>", toggle_adv)
+        self._toggle_adv = toggle_adv
+        toggle_adv(force=True)
+        check(tf, "prefer_youtube_captions", self.set_prefer_captions, "Use YouTube captions when available",
+              "For YouTube links, uses YouTube's own captions and only runs Whisper when there aren't any.")
+        check(tf, "whisper_batched", self.set_whisper_batched, "Fast batched mode (about 4x faster)")
+        check(tf, "asr_crosscheck", self.set_asr_crosscheck, "Voxtral cross-check",
+              "Runs a second local model on flagged spots and marks lines where the two disagree.")
+        # Watcher
+        st["wa"], wf = self._dcard(o)
+        self._dlabel(wf, "Watcher", font=F_SECTION).pack(fill="x")
+        field(wf, "max_concurrent_jobs", "Max concurrent jobs", spin("max_concurrent_jobs", self.set_jobs, 1, 10),
+              "Raising this while jobs run can cause contention and stalls.", help_fg=D_WARNING)
+        field(wf, "heartbeat_seconds", "Heartbeat (s)", spin("heartbeat_seconds", self.set_hb, 1, 120))
+        field(wf, "stall_timeout_seconds", "Stall timeout (s)", spin("stall_timeout_seconds", self.set_stall, 60, 86400))
+        check(wf, "start_scan_existing", self.set_scan, "Start with scan-existing")
+        check(wf, "skip_duplicates", self.set_skip_duplicates, "Skip files already transcribed")
+        # Handoff
+        st["ho"], hf = self._dcard(o)
+        self._dlabel(hf, "Handoff", font=F_SECTION).pack(fill="x")
+        check(hf, "handoff_try_api_first", self.set_handoff_api, "LLM: try API before browser",
+              "Sends to the LLM by API first, falling back to the browser.")
+        # Advanced
+        st["ad"], adf = self._dcard(o)
+        ah = tk.Frame(adf, bg=D_SURFACE)
+        ah.pack(fill="x")
+        self._dlabel(ah, "Advanced", font=F_SECTION).pack(side="left")
+        ttk.Button(ah, text="All settings\u2026", style="Dash.SmallSecondary.TButton", command=self._open_all_settings).pack(side="right")
+        field(adf, "log_profile", "Log profile", combo(self.set_profile, ("standard", "tuning", "debug")),
+              "tuning and debug add resource samples for the Monitor page.")
+        sf = tk.Frame(adf, bg=D_SURFACE)
+        sf.pack(fill="x", pady=(12, 0))
+        self._dlabel(sf, "Settings file", fg=D_MUTED).pack(fill="x")
+        self._wrap_label(self._dlabel(sf, str(settings_path(ROOT)), font=F_VALUE, fg=D_ACCENT)).pack(fill="x", pady=(4, 0))
+        # Folders
+        st["fo"], fof = self._dcard(o)
+        st["fo_body"] = fof
+        self._dlabel(fof, "Folders", font=F_SECTION).pack(fill="x")
+        st["fo_fields"] = tk.Frame(fof, bg=D_SURFACE)
+        st["fo_fields"].pack(fill="x")
+
+        def browse_into(var: tk.StringVar, title: str):
+            def go() -> None:
+                from tkinter import filedialog
+                start = var.get().strip()
+                p = Path(start) if start else ROOT
+                if not p.is_absolute():
+                    p = ROOT / p
+                chosen = filedialog.askdirectory(parent=self, title=title, initialdir=str(p if p.exists() else ROOT))
+                if chosen:
+                    var.set(str(Path(chosen)))
+            return go
+
+        folder(None, "watch_dir", self.set_watch_dir, "Watch folder", browse=browse_into(self.set_watch_dir, "Watch folder"))
+        folder(None, "completed_video_dir", self.set_completed_dir, "Completed videos",
+               browse=browse_into(self.set_completed_dir, "Completed videos folder"))
+        folder(None, "completed_audio_dir", self.set_completed_audio_dir, "Completed audio",
+               "Relative paths are inside the app folder.", browse=browse_into(self.set_completed_audio_dir, "Completed audio folder"))
+        folder(None, "library", self.set_library_dir, "Library location",
+               "Aeonimus Library: shared with the other Aeonimus apps. Finished transcripts are saved to its transcripts "
+               "folder; changing it here changes it for every Aeonimus app (applied on Save).",
+               browse=self._browse_library_location)
+        folder(None, "_inbox", self.handoff_inbox_var, "Downloads inbox",
+               "Where the URL Lister saves link lists (read-only).", readonly=True)
+        st["fo_rows"] = []
+        for key, label, make, help_text, _p in st["folder_fields"]:
+            st["fo_rows"].append(field(st["fo_fields"], key, label, make, help_text, stacked=True))
+        # sticky save bar: outside the scroll canvas (child of the ScrollablePage, grid row 1)
+        bar = tk.Frame(page, bg=D_SURFACE, highlightthickness=1, highlightbackground=D_BORDER)
+        bi = tk.Frame(bar, bg=D_SURFACE)
+        bi.pack(fill="both", expand=True, padx=12, pady=7)
+        icon = tk.Label(bi, text="\u2713", font=F_NAV, fg=D_SUCCESS, bg=D_SURFACE)
+        icon.pack(side="left")
+        lbl = tk.Label(bi, text="", font=F_NAV, fg=D_SUCCESS, bg=D_SURFACE)
+        lbl.pack(side="left", padx=(8, 0))
+        save = ttk.Button(bi, text="Save changes", style="Dash.Primary.TButton", command=self._settings_save)
+        save.pack(side="right")
+        discard = ttk.Button(bi, text="Discard", style="Dash.Secondary.TButton", command=self._settings_discard)
+        discard.pack(side="right", padx=(0, 8))
+        detail = tk.Label(bi, text="", font=F_BODY, fg=D_MUTED, bg=D_SURFACE, anchor="w", width=1)
+        detail.pack(side="left", fill="x", expand=True, padx=(8, 8))
+        bar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=16, pady=(0, 16))
+        page.inner.configure(pady=16)
+        self._sb = {"frame": bar, "icon": icon, "label": lbl, "detail": detail, "save": save, "discard": discard}
+        self.settings_save_bar = bar
+        st["cols"] = tk.Frame(o, bg=D_BG)
+        st["c1"] = tk.Frame(o, bg=D_BG)
+        st["c2"] = tk.Frame(o, bg=D_BG)
+        st["c3"] = tk.Frame(o, bg=D_BG)
+        for w in (st["tx"], st["wa"], st["ho"], st["ad"], st["fo"]):
+            w.lift()
+        for var in self._settings_vars().values():
+            var.trace_add("write", self._settings_dirty_update)
+        self._settings_mark_clean()
+        self._page_layouts.append(self._layout_settings)
+        self._layout_settings(compact=False)
+
+    def _layout_settings(self, *, compact: bool) -> None:
+        st = self._st
+        o = st["outer"]
+        self._forget(*self._header_parts(st["hdr"]), st["tx"], st["wa"], st["ho"], st["ad"], st["fo"], st["cols"],
+                     st["c1"], st["c2"], st["c3"])
+        self._pack_header(st["hdr"], o)
+        cols = st["cols"]
+        cols.pack(in_=o, fill="x")
+        for i in range(3):
+            cols.columnconfigure(i, weight=0, uniform="")
+        if not compact:
+            cols.columnconfigure(0, weight=1, uniform="sc")
+            cols.columnconfigure(1, weight=1, uniform="sc")
+            st["c1"].grid(in_=cols, row=0, column=0, sticky="nsew", padx=(0, 6))
+            st["c2"].grid(in_=cols, row=0, column=1, sticky="nsew", padx=(6, 0))
+            st["tx"].pack(in_=st["c1"], fill="x")
+            for w in (st["wa"], st["ho"], st["ad"]):
+                w.pack(in_=st["c2"], fill="x", pady=(0, 12))
+            st["fo"].pack(in_=o, fill="x", pady=(12, 0))
+        else:
+            for i in range(3):
+                cols.columnconfigure(i, weight=1, uniform="sc")
+            st["c1"].grid(in_=cols, row=0, column=0, sticky="nsew", padx=(0, 8))
+            st["c2"].grid(in_=cols, row=0, column=1, sticky="nsew", padx=(4, 4))
+            st["c3"].grid(in_=cols, row=0, column=2, sticky="nsew", padx=(8, 0))
+            st["tx"].pack(in_=st["c1"], fill="x")
+            for w in (st["wa"], st["ho"], st["ad"]):
+                w.pack(in_=st["c2"], fill="x", pady=(0, 12))
+            st["fo"].pack(in_=st["c3"], fill="x")
+        if not getattr(self, "_adv_user_toggled", False):
+            self._toggle_adv(force=not compact)
+
+    def _settings_values(self) -> tuple[dict | None, list[str]]:
+        bad: list[str] = []
+        labels = dict(self.SETTINGS_FIELDS)
+
+        def num(key: str, var: tk.Variable, cast, lo: float, hi: float):
+            try:
+                v = cast(float(str(var.get()).strip()))
+            except (tk.TclError, ValueError, TypeError):
+                bad.append(key)
+                return None
+            if not lo <= v <= hi:
+                bad.append(key)
+                return None
+            return v
+
+        vals = {
+            "heartbeat_seconds": num("heartbeat_seconds", self.set_hb, float, 1, 120),
+            "stall_timeout_seconds": num("stall_timeout_seconds", self.set_stall, float, 60, 86400),
+            "max_concurrent_jobs": num("max_concurrent_jobs", self.set_jobs, int, 1, 10),
+            "coverage_max_block_s": num("coverage_max_block_s", self.set_cov_block, float, 5, 3600),
+            "coverage_max_gap_s": num("coverage_max_gap_s", self.set_cov_gap, float, 5, 3600),
+        }
+        for key, sp in self._settings_spins.items():
+            sp.configure(style="Invalid.TSpinbox" if key in bad else "Screen.TSpinbox")
+        if bad:
+            return None, [labels.get(k, k) for k in bad]
+        for k in ("coverage_max_block_s", "coverage_max_gap_s"):
+            if float(vals[k]).is_integer():
+                vals[k] = int(vals[k])
+        vals.update({
+            "log_profile": self.set_profile.get(),
+            "start_scan_existing": bool(self.set_scan.get()),
+            "watch_dir": self.set_watch_dir.get().strip(),
+            "completed_video_dir": self.set_completed_dir.get().strip(),
+            "completed_dir": self.set_completed_dir.get().strip(),
+            "handoff_try_api_first": bool(self.set_handoff_api.get()),
+            "whisper_gpu_model": self.set_whisper_gpu.get().strip(),
+            "whisper_cpu_model": self.set_whisper_cpu.get().strip(),
+            "whisper_decode_profile": self.set_whisper_profile.get().strip() or "auto",
+            "prefer_youtube_captions": bool(self.set_prefer_captions.get()),
+            "whisper_language": self.set_whisper_language.get().strip() or "auto",
+            "asr_engine": self.set_asr_engine.get().strip() or "whisper",
+            "asr_crosscheck": bool(self.set_asr_crosscheck.get()),
+            "whisper_batched": bool(self.set_whisper_batched.get()),
+            "skip_duplicates": bool(self.set_skip_duplicates.get()),
+            "completed_audio_dir": self.set_completed_audio_dir.get().strip(),
+        })
+        return vals, []
+
+    def _settings_save(self) -> None:
+        vals, bad = self._settings_values()
+        if vals is None:
+            sb = self._sb
+            sb["icon"].configure(text="\u25cf", fg=D_DANGER_TEXT)
+            sb["label"].configure(text="Can't save yet", fg=D_DANGER_TEXT)
+            sb["detail"].configure(text="Fix these numbers: " + ", ".join(bad), fg=D_DANGER_TEXT)
+            return
+        library_changed = self._settings_saved.get("library") != self._settings_snapshot().get("library")
+        save_settings(ROOT, vals)
+        self._settings = load_settings(ROOT)
+        if library_changed:
+            self._apply_library_location()  # was the separate "Use this location" button
+        self._settings_saved_at = datetime.now().strftime("%H:%M")
+        self._refresh_handoff_flags()
+        self._settings_mark_clean()
+
+    def _settings_discard(self) -> None:
+        try:
+            self.set_library_dir.set(str(aeonimus_handoff.load_config().library))
+        except Exception:  # noqa: BLE001
+            pass
+        self._sync_settings_page_vars()
+        for sp in self._settings_spins.values():
+            sp.configure(style="Screen.TSpinbox")
+        self._settings_dirty_update()
+
 
     def _run_search(self) -> None:
         q = self.search_var.get().strip()
         self.search_tree.delete(*self.search_tree.get_children())
         self._search_hits = {}
+        self._search_buttons()
         if not q:
             return
         hits = transcript_search.search(q)
@@ -1536,7 +2423,9 @@ class ControlPanel(tk.Tk):
             iid = self.search_tree.insert("", "end", values=(h["stem"], f"{t // 3600}:{t % 3600 // 60:02d}:{t % 60:02d}", h["context"]))
             self._search_hits[iid] = h
         videos = len({h["stem"] for h in hits})
-        self.search_status_var.set(f"{len(hits)} matches in {videos} videos" if hits else "no matches")
+        self.search_status_var.set(f"{len(hits)} matches in {videos} videos" if hits
+                                   else f'0 matches for "{q}" (check the spelling, or Rebuild index)')
+        self._search_buttons()
 
     def _selected_hit(self) -> dict | None:
         sel = self.search_tree.selection()
@@ -1582,51 +2471,10 @@ class ControlPanel(tk.Tk):
                 msg = f"rebuilt: {r['indexed']} transcripts, {segs} segments" + (f", {r['failed']} failed" if r["failed"] else "")
             except Exception as exc:
                 msg = f"rebuild failed: {exc}"
-            self.after(0, lambda: self.search_status_var.set(msg))
+            self.after(0, lambda: (self.search_status_var.set(msg), self.search_index_var.set(
+                f"index: {n} transcripts, {segs} segments" if not msg.startswith("rebuild failed") else "")))
 
         threading.Thread(target=work, daemon=True).start()
-
-    def _build_page_review(self, parent: tk.Frame) -> None:
-        wrap = tk.Frame(parent, bg=BG_MAIN)
-        wrap.pack(fill="both", expand=True)
-        top = tk.Frame(wrap, bg=BG_MAIN)
-        top.pack(fill="x", pady=(0, 14))
-        self._section_title(top, "TRANSCRIPTS / REVIEW", "Review Flagged Spots",
-                            "Check low-confidence segments: play the audio there, fix the text, save. The original text is kept.")
-        row = tk.Frame(wrap, bg=BG_MAIN)
-        row.pack(fill="x", pady=(0, 10))
-        self.review_stem_var = tk.StringVar()
-        self.review_status_var = tk.StringVar(value="")
-        self.review_combo = ttk.Combobox(row, textvariable=self.review_stem_var, state="readonly", width=70)
-        self.review_combo.pack(side="left")
-        self.review_combo.bind("<<ComboboxSelected>>", lambda _e: self._review_load_flags())
-        ttk.Button(row, text="Refresh list", command=self._review_refresh_list).pack(side="left", padx=(10, 0))
-        self._body_label(row, textvariable=self.review_status_var, fg=ACCENT_MINT, mono=True, size=10).pack(side="right")
-        card = self._card(wrap, expand=True)
-        shell = tk.Frame(card, bg=BG_CARD)
-        shell.pack(fill="both", expand=True, padx=18, pady=18)
-        cols = ("time", "state", "reason", "text")
-        self.review_tree = ttk.Treeview(shell, columns=cols, show="headings", height=11, selectmode="browse")
-        for c, w, label in (("time", 80, "Time"), ("state", 90, "State"), ("reason", 260, "Why flagged"), ("text", 640, "Text")):
-            self.review_tree.heading(c, text=label)
-            self.review_tree.column(c, width=w, anchor="w", stretch=(c == "text"))
-        self.review_tree.pack(fill="both", expand=True)
-        self.review_tree.bind("<<TreeviewSelect>>", lambda _e: self._review_select())
-        self.review_tree.bind("<Double-1>", lambda _e: self._review_play())
-        self.review_orig_var = tk.StringVar(value="")
-        self._body_label(shell, textvariable=self.review_orig_var, fg=FG_DIM, size=10).pack(anchor="w", pady=(10, 4))
-        self.review_text = tk.Text(shell, height=4, wrap="word", bg=FIELD_BG, fg=FG, insertbackground=FG,
-                                   relief="flat", highlightthickness=1, highlightbackground=CARD_BORDER, font=(FONT_MONO, 11))
-        self.review_text.pack(fill="x")
-        btns = tk.Frame(shell, bg=BG_CARD)
-        btns.pack(fill="x", pady=(10, 0))
-        ttk.Button(btns, text="Play snippet", command=self._review_play).pack(side="left")
-        ttk.Button(btns, text="Save correction", style="Accent.TButton", command=self._review_save).pack(side="left", padx=(8, 0))
-        ttk.Button(btns, text="Mark OK", command=self._review_mark_ok).pack(side="left", padx=(8, 0))
-        ttk.Button(btns, text="Revert to original", command=self._review_revert).pack(side="left", padx=(8, 0))
-        self._review_items: dict[str, dict] = {}
-        self._review_index: dict[str, dict] = {}
-        self._review_refresh_list()
 
     def _review_dirs(self) -> dict:
         return {k: str(v) for k, v in self._search_dirs().items()}
@@ -1662,16 +2510,54 @@ class ControlPanel(tk.Tk):
         tree.delete(*tree.get_children())
         self._review_items = {}
         t = self._review_current()
+        self._review_editor_state(None)
         if not t:
+            self._review_set_warning([])
+            self.review_progress_var.set("")
             return
-        for it in transcript_review.flagged_items(t["json_path"]):
-            s = int(it["start"])
-            state = "edited" if it["original_text"] is not None else ("OK" if it["reviewed"] else "to review")
-            iid = tree.insert("", "end", values=(f"{s // 3600}:{s % 3600 // 60:02d}:{s % 60:02d}", state, it["reason"][:80], it["text"]))
+        try:
+            cov = transcript_review.coverage_items(t["json_path"])
+        except Exception:  # noqa: BLE001
+            cov = []
+        rows = [dict(w, index=None, text=w.get("text", ""), original_text=None, reviewed=False) for w in cov]
+        flagged = transcript_review.flagged_items(t["json_path"])
+        rows += flagged
+        rows.sort(key=lambda r: float(r.get("start") or 0))
+        for it in rows:
+            s = int(float(it["start"] or 0))
+            stamp = f"{s // 3600}:{s % 3600 // 60:02d}:{s % 60:02d}"
+            if it.get("kind") in ("gap", "long_block"):
+                rng = f"{coverage_check.mmss(it['start'])}\u2013{coverage_check.mmss(it['end'])}"
+                state = "\u26a0 MISSED AUDIO" if it["kind"] == "gap" else "\u26a0 STRETCHED"
+                why = f"long gap {rng}" if it["kind"] == "gap" else f"one line stretched over {rng}"
+                it["reason"] = why
+                iid = tree.insert("", "end", values=(stamp, state, why, it.get("text") or ""), tags=("warn",))
+            else:
+                state = "edited" if it["original_text"] is not None else ("OK" if it["reviewed"] else "to review")
+                tag = "st_accent" if state == "edited" else ("st_success" if state == "OK" else "")
+                iid = tree.insert("", "end", values=(stamp, state, it["reason"][:80], it["text"]),
+                                  tags=(tag,) if tag else ())
+                if keep_index is not None and it["index"] == keep_index:
+                    tree.selection_set(iid)
+                    tree.see(iid)
             self._review_items[iid] = it
-            if keep_index is not None and it["index"] == keep_index:
-                tree.selection_set(iid)
-                tree.see(iid)
+        done = sum(1 for it in flagged if it["reviewed"] or it["original_text"] is not None)
+        self.review_progress_var.set(f"{done} of {len(flagged)} reviewed" if flagged else "")
+        self._review_set_warning(cov)
+
+    def _review_set_warning(self, cov: list) -> None:
+        if cov:
+            first = cov[0]
+            self.review_warn_title.set(coverage_check.describe(first))
+            more = f" \u00b7 {len(cov) - 1} more spot{'s' if len(cov) != 2 else ''}" if len(cov) > 1 else ""
+            self.review_warn_detail.set(("long gap" if first.get("kind") == "gap" else "one line stretched over this span")
+                                        + more + " \u00b7 try the music profile in Settings")
+        else:
+            self.review_warn_title.set("")
+            self.review_warn_detail.set("")
+        shown = self._r["warn"].winfo_manager() != ""
+        if shown != bool(cov):
+            self._layout_review(compact=bool(self._dash_compact))
 
     def _review_selected(self) -> dict | None:
         sel = self.review_tree.selection()
@@ -1679,12 +2565,14 @@ class ControlPanel(tk.Tk):
 
     def _review_select(self) -> None:
         it = self._review_selected()
+        self._review_editor_state(it)
         if not it:
             return
         self.review_text.delete("1.0", "end")
         self.review_text.insert("1.0", it["text"])
         orig = it["original_text"]
-        self.review_orig_var.set(f"Original: {str(orig).strip()}" if orig is not None else f"Why flagged: {it['reason']}")
+        self.review_orig_var.set(str(orig).strip() if orig is not None else str(it["text"]).strip() or "\u2014")
+        self.review_why_var.set(it["reason"])
 
     def _review_play(self) -> None:
         it, t = self._review_selected(), self._review_current()
@@ -1703,7 +2591,7 @@ class ControlPanel(tk.Tk):
 
     def _review_apply(self, action) -> None:
         it, t = self._review_selected(), self._review_current()
-        if not it or not t:
+        if not it or not t or it.get("index") is None:
             messagebox.showinfo("Review", "Select a flagged segment first.")
             return
         try:
@@ -1815,139 +2703,6 @@ class ControlPanel(tk.Tk):
         ttk.Button(bar, text="Close", command=win.destroy).pack(side="right", padx=(0, 10))
         tk.Label(bar, text=f"Stored in {settings_path(ROOT).name}", fg=FG_DIM, bg=BG_MAIN).pack(side="left")
         self._all_settings_win = win
-
-    def _build_page_settings(self, parent: tk.Frame) -> None:
-        wrap = tk.Frame(parent, bg=BG_MAIN)
-        wrap.pack(fill="both", expand=True)
-        top = tk.Frame(wrap, bg=BG_MAIN)
-        top.pack(fill="x", pady=(0, 14))
-        self._section_title(top, "SYSTEM CONTROL MATRIX", "Settings", "Adjust global Whisper pipeline performance and storage parameters.")
-        actions = tk.Frame(top, bg=BG_MAIN)
-        actions.pack(anchor="e", pady=(8, 0))
-
-        def save_quick() -> None:
-            save_settings(
-                ROOT,
-                {
-                    "heartbeat_seconds": float(self.set_hb.get()),
-                    "stall_timeout_seconds": float(self.set_stall.get()),
-                    "max_concurrent_jobs": int(self.set_jobs.get()),
-                    "log_profile": self.set_profile.get(),
-                    "start_scan_existing": bool(self.set_scan.get()),
-                    "watch_dir": self.set_watch_dir.get().strip(),
-                    "completed_video_dir": self.set_completed_dir.get().strip(),
-                    "completed_dir": self.set_completed_dir.get().strip(),
-                    "handoff_try_api_first": bool(self.set_handoff_api.get()),
-                    "whisper_gpu_model": self.set_whisper_gpu.get().strip(),
-                    "whisper_cpu_model": self.set_whisper_cpu.get().strip(),
-                    "whisper_decode_profile": self.set_whisper_profile.get().strip() or "auto",
-                    "prefer_youtube_captions": bool(self.set_prefer_captions.get()),
-                    "whisper_language": self.set_whisper_language.get().strip() or "auto",
-                    "asr_engine": self.set_asr_engine.get().strip() or "whisper",
-                    "asr_crosscheck": bool(self.set_asr_crosscheck.get()),
-                    "whisper_batched": bool(self.set_whisper_batched.get()),
-                    "skip_duplicates": bool(self.set_skip_duplicates.get()),
-                    "completed_audio_dir": self.set_completed_audio_dir.get().strip(),
-                },
-            )
-            self._settings = load_settings(ROOT)
-            messagebox.showinfo("Settings", "Saved.")
-
-        ttk.Button(actions, text="All settings...", command=self._open_all_settings).pack(side="left", padx=(0, 12))
-        ttk.Button(actions, text="Discard", command=self._sync_settings_page_vars).pack(side="left")
-        ttk.Button(actions, text="Save changes", style="Accent.TButton", command=save_quick).pack(side="left", padx=(12, 0))
-
-        grid = tk.Frame(wrap, bg=BG_MAIN)
-        grid.pack(fill="both", expand=True)
-        grid.columnconfigure(0, weight=2)
-        grid.columnconfigure(1, weight=1)
-
-        left = self._card(grid, autopack=False)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 12), pady=(0, 12))
-        lf = tk.Frame(left, bg=BG_CARD)
-        lf.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(lf, "Execution Control", size=18, fg=FG).pack(anchor="w")
-        exec_grid = tk.Frame(lf, bg=BG_CARD)
-        exec_grid.pack(fill="x", pady=(14, 0))
-        self._settings_row(exec_grid, 0, "Max concurrent jobs", self.set_jobs, spin=True, maxv=10, minv=1, intv=True)
-        self._settings_row(exec_grid, 1, "Heartbeat (s)", self.set_hb, spin=True, maxv=120)
-        self._settings_row(exec_grid, 2, "Stall timeout (s)", self.set_stall, spin=True, maxv=86400, minv=60)
-        tk.Label(exec_grid, text="Start with scan-existing", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=3, column=0, sticky="w", pady=8)
-        ttk.Checkbutton(exec_grid, variable=self.set_scan).grid(row=3, column=1, sticky="w", pady=8)
-        whisper_models = ("tiny", "base", "small", "medium", "large-v2", "large-v3", "large-v3-turbo", "distil-large-v3")
-        tk.Label(exec_grid, text="GPU Whisper model", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=4, column=0, sticky="w", pady=8)
-        ttk.Combobox(exec_grid, textvariable=self.set_whisper_gpu, values=whisper_models, state="readonly", width=18).grid(row=4, column=1, sticky="w", pady=8)
-        tk.Label(exec_grid, text="CPU Whisper model", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=5, column=0, sticky="w", pady=8)
-        ttk.Combobox(exec_grid, textvariable=self.set_whisper_cpu, values=whisper_models, state="readonly", width=18).grid(row=5, column=1, sticky="w", pady=8)
-        tk.Label(exec_grid, text="Decode profile", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=6, column=0, sticky="w", pady=8)
-        ttk.Combobox(exec_grid, textvariable=self.set_whisper_profile, values=("auto", "speech", "music", "legacy"), state="readonly", width=18).grid(row=6, column=1, sticky="w", pady=8)
-        tk.Label(exec_grid, text="Language (auto or code)", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=7, column=0, sticky="w", pady=8)
-        ttk.Combobox(exec_grid, textvariable=self.set_whisper_language, values=("auto", "en", "de", "es", "fr"), width=18).grid(row=7, column=1, sticky="w", pady=8)
-        tk.Label(exec_grid, text="Transcription engine", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=8, column=0, sticky="w", pady=8)
-        ttk.Combobox(exec_grid, textvariable=self.set_asr_engine, values=("whisper", "voxtral-mini-3b", "granite-2b"), state="readonly", width=18).grid(row=8, column=1, sticky="w", pady=8)
-        tk.Label(exec_grid, text="Voxtral cross-check", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=9, column=0, sticky="w", pady=8)
-        ttk.Checkbutton(exec_grid, variable=self.set_asr_crosscheck).grid(row=9, column=1, sticky="w", pady=8)
-        tk.Label(exec_grid, text="Fast batched mode (about 4x faster)", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=10, column=0, sticky="w", pady=8)
-        ttk.Checkbutton(exec_grid, variable=self.set_whisper_batched).grid(row=10, column=1, sticky="w", pady=8)
-        tk.Label(exec_grid, text="Skip files already transcribed", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=11, column=0, sticky="w", pady=8)
-        ttk.Checkbutton(exec_grid, variable=self.set_skip_duplicates).grid(row=11, column=1, sticky="w", pady=8)
-        tk.Label(exec_grid, text="Use YouTube captions when available", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=12, column=0, sticky="w", pady=8)
-        ttk.Checkbutton(exec_grid, variable=self.set_prefer_captions).grid(row=12, column=1, sticky="w", pady=8)
-
-        right = self._card(grid, autopack=False)
-        right.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
-        rf = tk.Frame(right, bg=BG_CARD)
-        rf.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(rf, "Resource Logging", size=18, fg=FG).pack(anchor="w")
-        tk.Label(rf, text="Log profile", fg=FG_DIM, bg=BG_CARD, anchor="w").pack(anchor="w", pady=(14, 6))
-        ttk.Combobox(rf, textvariable=self.set_profile, values=("standard", "tuning", "debug"), state="readonly", width=20).pack(anchor="w")
-        tk.Label(rf, text="LLM: try API before browser", fg=FG_DIM, bg=BG_CARD, anchor="w").pack(anchor="w", pady=(18, 6))
-        ttk.Checkbutton(rf, variable=self.set_handoff_api).pack(anchor="w")
-        self._body_label(rf, "Settings file", fg=FG_DIM, mono=True, size=10).pack(anchor="w", pady=(18, 4))
-        self._body_label(rf, str(settings_path(ROOT)), fg=ACCENT, mono=True, size=10, wraplength=260).pack(anchor="w")
-
-        paths = self._card(wrap)
-        paths.pack(fill="x", pady=(0, 12))
-        pf = tk.Frame(paths, bg=BG_CARD)
-        pf.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(pf, "Path Configuration", size=18, fg=FG).pack(anchor="w")
-        form = tk.Frame(pf, bg=BG_CARD)
-        form.pack(fill="x", pady=(14, 0))
-        tk.Label(form, text="Watch directory", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=0, column=0, sticky="w", pady=6, padx=(0, 12))
-        tk.Entry(form, textvariable=self.set_watch_dir, width=56, bg=FIELD_BG, fg=FG, insertbackground=FG, highlightthickness=1, highlightbackground=CARD_BORDER).grid(row=0, column=1, sticky="ew", pady=6)
-        tk.Label(form, text="Completed video directory", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=1, column=0, sticky="w", pady=6, padx=(0, 12))
-        tk.Entry(form, textvariable=self.set_completed_dir, width=56, bg=FIELD_BG, fg=FG, insertbackground=FG, highlightthickness=1, highlightbackground=CARD_BORDER).grid(row=1, column=1, sticky="ew", pady=6)
-        tk.Label(form, text="Completed audio directory", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=2, column=0, sticky="w", pady=6, padx=(0, 12))
-        tk.Entry(form, textvariable=self.set_completed_audio_dir, width=56, bg=FIELD_BG, fg=FG, insertbackground=FG, highlightthickness=1, highlightbackground=CARD_BORDER).grid(row=2, column=1, sticky="ew", pady=6)
-        form.columnconfigure(1, weight=1)
-
-        lib = self._card(wrap)
-        lib.pack(fill="x", pady=(0, 12))
-        lbf = tk.Frame(lib, bg=BG_CARD)
-        lbf.pack(fill="both", expand=True, padx=18, pady=18)
-        self._headline(lbf, "Aeonimus Library", size=18, fg=FG).pack(anchor="w")
-        self._body_label(
-            lbf,
-            "Shared with the other Aeonimus apps. Finished transcripts are saved to its transcripts folder, and the "
-            "Import from URL Lister button moves new link lists here from the Downloads inbox. Changing it here changes it for every Aeonimus app.",
-            fg=FG_DIM, size=10, wraplength=980,
-        ).pack(anchor="w", pady=(6, 0))
-        lform = tk.Frame(lbf, bg=BG_CARD)
-        lform.pack(fill="x", pady=(12, 0))
-        tk.Label(lform, text="Library location", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=0, column=0, sticky="w", pady=6, padx=(0, 12))
-        tk.Entry(lform, textvariable=self.set_library_dir, width=56, bg=FIELD_BG, fg=FG, insertbackground=FG, highlightthickness=1, highlightbackground=CARD_BORDER).grid(row=0, column=1, sticky="ew", pady=6)
-        ttk.Button(lform, text="Browse...", command=self._browse_library_location).grid(row=0, column=2, padx=(8, 0))
-        ttk.Button(lform, text="Use this location", command=self._apply_library_location).grid(row=0, column=3, padx=(8, 0))
-        tk.Label(lform, text="Downloads inbox", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=1, column=0, sticky="w", pady=6, padx=(0, 12))
-        tk.Label(lform, textvariable=self.handoff_inbox_var, fg=ACCENT, bg=BG_CARD, anchor="w", font=(FONT_MONO, 9)).grid(row=1, column=1, sticky="w", pady=6)
-        lform.columnconfigure(1, weight=1)
-
-        note = self._card(wrap)
-        note.pack(fill="x")
-        nf = tk.Frame(note, bg=BG_CARD)
-        nf.pack(fill="x", padx=18, pady=18)
-        self._body_label(nf, "CORE WARNING", fg=ACCENT_RED, mono=True, size=10, bold=True).pack(anchor="w")
-        self._body_label(nf, "Changing max concurrent jobs during active transcription cycles can increase contention and stall risk across worker processes.", fg=FG, size=10, wraplength=980).pack(anchor="w", pady=(6, 0))
 
     def _settings_row(
         self,
@@ -2194,6 +2949,7 @@ class ControlPanel(tk.Tk):
         tv.column("chev", width=20, stretch=False, anchor="center")
         tv.tag_configure("hover", background=D_RAISED)
         tv.tag_configure("empty", foreground=D_MUTED)
+        tv.tag_configure("warn", background=D_WARNING_SURFACE, foreground=D_WARNING)
         tv.pack(fill="x")
         self.latest_list = tv
         tv.bind("<Double-1>", lambda _e: self._open_latest_selected())
@@ -2222,7 +2978,7 @@ class ControlPanel(tk.Tk):
         row = tv.identify_row(e.y)
         for i in tv.get_children():
             tags = tv.item(i, "tags")
-            if i == row and "empty" not in tags and "hover" not in tags:
+            if i == row and "empty" not in tags and "warn" not in tags and "hover" not in tags:
                 tv.item(i, tags=("hover",))
             elif i != row and "hover" in tags:
                 tv.item(i, tags=())
@@ -2256,7 +3012,9 @@ class ControlPanel(tk.Tk):
             for i, p in enumerate(paths):
                 ts = aeonimus_handoff.file_mtime(p)
                 when = datetime.fromtimestamp(ts).strftime("%b %d %H:%M") if ts else ""
-                tv.insert("", "end", iid=str(i), text=p.name, values=(when, "\u203a"))
+                warned = str(p) in getattr(self, "_latest_warned", set())
+                tv.insert("", "end", iid=str(i), text=("\u26a0 " if warned else "") + p.name, values=(when, "\u203a"),
+                          tags=("warn",) if warned else ())
         except tk.TclError:
             pass
 
@@ -2271,6 +3029,7 @@ class ControlPanel(tk.Tk):
         if lab is None:
             return
         lines = []
+        self._latest_warned = set()
         for p in paths:
             try:
                 data = json.loads(p.with_suffix(".json").read_text(encoding="utf-8"))
@@ -2278,6 +3037,7 @@ class ControlPanel(tk.Tk):
                 continue
             warns = coverage_check.warnings_from_json_data(data)
             if warns:
+                self._latest_warned.add(str(p))
                 spans = ", ".join(coverage_check.describe(w).replace("Possibly missed audio at ", "") for w in warns[:3])
                 more = f" (+{len(warns) - 3} more)" if len(warns) > 3 else ""
                 lines.append(f"\u26a0 {p.stem[:48]}: Possibly missed audio at {spans}{more}")
@@ -2446,8 +3206,7 @@ class ControlPanel(tk.Tk):
         chosen = filedialog.askdirectory(parent=self, title="Choose the Aeonimus Library folder",
                                          initialdir=start if Path(start).exists() else str(Path.home()))
         if chosen:
-            self.set_library_dir.set(str(Path(chosen)))
-            self._apply_library_location()
+            self.set_library_dir.set(str(Path(chosen)))  # applied by Save changes (was "Use this location")
 
     def _toggle_watcher_power(self) -> None:
         self._settings = load_settings(ROOT)
@@ -2667,6 +3426,13 @@ class ControlPanel(tk.Tk):
         self.set_whisper_batched.set(bool(s.get("whisper_batched", False)))
         self.set_skip_duplicates.set(bool(s.get("skip_duplicates", True)))
         self.set_completed_audio_dir.set(str(s.get("completed_audio_dir", "completed_audio")))
+        if hasattr(self, "set_cov_block"):
+            self.set_cov_block.set(str(s.get("coverage_max_block_s", 30)))
+            self.set_cov_gap.set(str(s.get("coverage_max_gap_s", 60)))
+        self._settings = s
+        if hasattr(self, "_sb"):
+            self._settings_mark_clean()
+            self._refresh_handoff_flags()
 
     def _open_handoff(self) -> None:
         data = self._read_status()
@@ -2931,7 +3697,7 @@ class ControlPanel(tk.Tk):
             bar = ("#" * int((frac or 0) * 12)).ljust(12, ".")
             prog = f"{bar} {frac * 100:.0f}%" if frac is not None else f"{float(j.get('last_segment_end') or 0):.0f}s"
             tree.insert("", tk.END, iid=p or None, values=(Path(p).name if p else "-", str(j.get("phase", "")),
-                        str(j.get("engine") or "-"), prog, queue_control.format_eta(eta)))
+                        str(j.get("engine") or "-"), prog, queue_control.format_eta(eta)), tags=("st_success",))
             if first is None:
                 first = (j, frac, eta)
         queued = [q for q in (data.get("queued_order") or []) if q not in active_paths]
@@ -2939,7 +3705,8 @@ class ControlPanel(tk.Tk):
         for n, q in enumerate(self._queue_order, 1):
             state = "paused" if self._queue_paused else f"queued #{n}"
             if not tree.exists(q):
-                tree.insert("", tk.END, iid=q, values=(Path(q).name, state, "-", "-", "-"))
+                tree.insert("", tk.END, iid=q, values=(Path(q).name, state, "-", "-", "-"),
+                            tags=("st_muted",) if self._queue_paused else ("st_accent",))
         if keep and tree.exists(keep):
             tree.selection_set(keep)
         if first:
@@ -2947,13 +3714,23 @@ class ControlPanel(tk.Tk):
             dur = float(j.get("duration") or 0)
             seg = float(j.get("last_segment_end") or 0)
             self.live_name_var.set(Path(str(j.get("path", ""))).name)
-            self.live_bar["value"] = (frac or 0) * 100
+            self._set_live_progress(frac)
+            if hasattr(self, "lt_chip"):
+                self._set_chip(self.lt_chip, "success", str(j.get("phase") or "decoding").upper()[:16])
             pos = f"{queue_control.format_eta(seg)} / {queue_control.format_eta(dur)}" if dur else f"{seg:.0f}s"
             self.live_detail_var.set(f"{j.get('engine') or 'engine ?'}  |  {pos}  |  ETA {queue_control.format_eta(eta)}")
         else:
             self.live_name_var.set("Queue paused" if self._queue_paused and self._queue_order else "Nothing transcribing right now")
-            self.live_bar["value"] = 0
+            self._set_live_progress(None)
+            if hasattr(self, "lt_chip"):
+                self._set_chip(self.lt_chip, "muted", "PAUSED" if self._queue_paused else "IDLE")
             self.live_detail_var.set(f"{len(self._queue_order)} file(s) waiting" if self._queue_order else "")
+
+    def _set_live_progress(self, frac) -> None:
+        for bar in getattr(self, "_live_bars", []):
+            bar["maximum"] = 100
+            bar["value"] = (frac or 0) * 100
+        self.live_pct_var.set(f"{(frac or 0) * 100:.0f}%" if frac is not None else "")
 
     def _apply_status(self, data: dict) -> None:
         running_flag = bool(data.get("running", False))
@@ -3082,6 +3859,10 @@ class ControlPanel(tk.Tk):
         can_stop = bool(running_flag and alive)
         can_start = not can_stop or stale_running
         self._set_dashboard_state(running=can_stop, stale=bool(stale_running))
+        if hasattr(self, "q_stop_btn"):
+            self.q_stop_btn.state(["!disabled"] if can_stop else ["disabled"])
+            self.q_start_btn.state(["!disabled"] if can_start else ["disabled"])
+            self.q_start_btn.configure(style="Dash.Secondary.TButton" if can_stop else "Dash.Primary.TButton")
         self.power_btn.state(["!disabled"] if (can_start or can_stop) else ["disabled"])
 
         recent_failure = last_event.startswith("failed:") or last_event.startswith("stalled:")
@@ -3129,6 +3910,7 @@ class ControlPanel(tk.Tk):
         provider = str(self._settings.get("default_llm_provider", "notebooklm")).strip() or "notebooklm"
         self.handoff_destination_var.set(provider.replace("_", " ").title())
         self.handoff_format_var.set("Raw text + JSON")
+        self._refresh_handoff_flags()
 
     def _load_log_tail(self, lines: int = 80) -> None:
         raw = self._read_log_lines()
@@ -3146,6 +3928,7 @@ class ControlPanel(tk.Tk):
             view.reverse()
             content = "\n".join(view) if view else "No log lines match the current filter."
         self._set_text(self.log_text, content)
+        self._color_log_lines(self.log_text)
         if stick_to_top:
             try:
                 self.log_text.yview_moveto(0.0)
@@ -3202,6 +3985,11 @@ class ControlPanel(tk.Tk):
                 view.reverse()
                 content = "\n".join(view) if view else "No transcript segments have been emitted yet."
         self._set_text(self.live_transcribe_text, content)
+        try:
+            self.live_transcribe_text.tag_remove("latest", "1.0", "end")
+            self.live_transcribe_text.tag_add("latest", "1.0", "1.end")
+        except tk.TclError:
+            pass
         if stick_to_top:
             try:
                 self.live_transcribe_text.yview_moveto(0.0)

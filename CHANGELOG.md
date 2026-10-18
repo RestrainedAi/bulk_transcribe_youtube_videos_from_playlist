@@ -2,6 +2,56 @@
 
 All notable changes to the Transcription Workbench.
 
+## 1.3.0 (2026-10-17)
+
+Redesign of every page except the Dashboard layout (Queue, Monitor, Logs, Live
+Transcribe, Handoff, Search, Review, Settings), following the Figma screens
+handoff. Every page fits at 1000x1024 and at 1280x720 with nothing clipped;
+Settings scrolls by design and keeps its Save bar on screen.
+
+- New colour tokens: warning `#ffb84d`, warning surface `#2b2112`, disabled text
+  `#6b7480`. "Possibly missed audio" is now an amber strip on the Dashboard
+  (Latest transcripts rows with a warning get a marker) and on Review.
+- **Queue**: page header with Stop / Start watcher; four tiles; one **Add media**
+  card (Watch folder, From the URL Lister, Add YouTube / Suno links); Active
+  Queue with a "Now transcribing" progress row, Pause queue, Move up / down and
+  Skip selected; Recently Completed. **Open watch folder** replaces the old
+  "Browse files" and "New task" buttons (both only opened the watch folder).
+- **Monitor**: CPU / Memory / GPU / Live health tiles, processing unit and
+  disk / telemetry cards.
+- **Logs**: status chip, Open log file, Unified log, Copy for support, Refresh,
+  a filter box with a clear button, and lines coloured by level.
+- **Live Transcribe**: status chip (DECODING / IDLE / PAUSED), progress bar,
+  Open raw stream, and a Word wrap toggle; newest segment highlighted.
+- **Handoff**: primary destination, read-only endpoint diagnostics, default
+  formatting, and read-only flag chips that show real settings only
+  (ASK_EACH_TIME, LLM_API_FIRST, RESUME_ON_START, SKIP_DUPLICATES, and the
+  built-in CPU_RETRY_ON_CRASH). Flags with no real setting were dropped.
+- **Search**: Play at time / Open transcript stay disabled until a result is
+  selected; clearer "0 matches" message; index status next to the results.
+- **Review**: transcript picker, amber missed-audio strip with **Jump to spot**,
+  missed-audio and stretched-line rows in the flags table, "N of M reviewed",
+  and an editor whose buttons are disabled when nothing editable is selected.
+- **Settings**: cards for Transcription, Watcher, Handoff, Advanced and Folders;
+  one decode-profile dropdown (auto / speech / music / legacy) with help text;
+  an **Advanced overrides** section with the missed-audio limits (max block
+  30 s, max gap 60 s); Browse... buttons for folders; number fields checked
+  before saving; one sticky Save bar with unsaved-change count, Discard and
+  Save changes. **Save** now also applies a changed Library location (the old
+  "Use this location" button).
+- Version label reads `app_version.py` (1.3.0).
+- New tests: `tests/test_screens_layout.py` (fit at both sizes, column widths,
+  Settings dirty state and validation, Handoff flags, Review strip and editor
+  states, Search buttons, version label).
+
+### Proposed (not built in 1.3.0)
+
+- Logs level filter (Info / Warn / Error / Debug chips).
+- Review Prev / Next buttons.
+- Monitor trends chart.
+- In-app Documentation page (the sidebar link still opens the docs folder).
+- "Re-run with music profile" button on the Review missed-audio strip.
+
 ## 1.2.2 (2026-10-17)
 
 - Music no longer comes out mostly empty. Whisper's speech filter treated singing
