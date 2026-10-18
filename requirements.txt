@@ -1,4 +1,6 @@
 faster-whisper
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
 psutil
 pytubefix
 pandas
@@ -6,9 +8,11 @@ fastapi
 spacy
 numba
 openai
-pydub
 ruff
 tqdm
 watchdog
 google-api-python-client
 youtube-transcript-api
+anthropic
+yt-dlp
+yt-dlp-ejs

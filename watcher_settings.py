@@ -41,6 +41,19 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "youtube_transcript_also_save_txt": False,
     "youtube_api_key_secret_project": "",
     "youtube_api_key_secret_id": "",
+    "whisper_gpu_model": "large-v3",
+    "whisper_cpu_model": "medium",
+    "whisper_decode_profile": "robust",
+    "whisper_language": "auto",
+    "asr_engine": "whisper",
+    "asr_crosscheck": False,
+    "whisper_batched": False,
+    "whisper_batch_size": 8,
+    "skip_duplicates": True,
+    "resume_on_start": True,
+    "min_free_disk_gb": 10.0,
+    "asr_models_dir": "E:\\.lmstudio\\models\\ASR",
+    "asr_eval_python": "",
 }
 
 
@@ -60,6 +73,9 @@ def load_settings(repo_root: Path) -> dict[str, Any]:
                         data[k] = v
         except (json.JSONDecodeError, OSError):
             pass
+    # granite-8b was removed (model deleted); older saved settings fall back to the default engine.
+    if data.get("asr_engine") not in ("whisper", "voxtral-mini-3b", "granite-2b"):
+        data["asr_engine"] = "whisper"
     return data
 
 
