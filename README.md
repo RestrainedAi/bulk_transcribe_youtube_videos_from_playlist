@@ -6,7 +6,7 @@ graphics card. It is part of the Aeonimus workflow: it imports link lists from
 the YouTube URL Lister and shares finished transcripts with the Comment
 Workbench.
 
-**Current version: 1.2.2** (see [CHANGELOG.md](CHANGELOG.md)). The version
+**Current version: 1.3.0** (see [CHANGELOG.md](CHANGELOG.md)). The version
 shows in the window title and the sidebar, and lives in `app_version.py`.
 
 ## Who it's for
@@ -43,8 +43,13 @@ The launcher runs a quick self-check (`startup_selfcheck.py`) and then
   library's `transcripts` folder. **Latest transcripts** below it lists the
   newest 5 finished transcripts; double-click one to open it, or use **Show in
   folder**.
-- The Dashboard fits on screen at about 1000x1024; every page scrolls (scrollbar
-  or mouse wheel) when the window is smaller.
+- Every page fits on screen at about 1000x1024 and at 1280x720; pages scroll
+  (scrollbar or mouse wheel) when the window is smaller. Settings always
+  scrolls and keeps its Save bar at the bottom.
+- **Queue** page: **Open watch folder**, **Import from URL Lister**, links,
+  Pause queue, Move up / down and Skip selected. **Review** shows an amber
+  strip when a transcript has possibly missed audio; **Jump to spot** selects
+  it.
 - **Suno songs**: paste a link like `https://suno.com/song/<uuid>` or include
   it in a CSV. Files are named `<title> [suno-<uuid>]`. Sung vocals come out
   rougher than speech.
@@ -52,8 +57,8 @@ The launcher runs a quick self-check (`startup_selfcheck.py`) and then
   moves the newest URL Lister export from `Downloads\Aeonimus\link-lists` into
   the shared library, says which file it picked and how many links it has,
   queues the downloads and starts the watcher.
-- **Library location** is in Settings; **Open handoff folder** is next to the
-  easy button. Changing the library here also changes it for the Comment
+- **Library location** is in Settings (applied when you press **Save
+  changes**); **Open handoff folder** is next to the easy button. Changing the library here also changes it for the Comment
   Workbench.
 - Search, review and correct transcripts, and send a finished transcript to
   NotebookLM, LM Studio or an AI service (optional, your own keys).
