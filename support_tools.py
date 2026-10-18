@@ -1,4 +1,4 @@
-﻿"""Support helpers: a friendly catalog of every setting, a unified log, and a 'copy for support' report."""
+"""Support helpers: a friendly catalog of every setting, a unified log, and a 'copy for support' report."""
 from __future__ import annotations
 
 import json
@@ -46,6 +46,7 @@ CATALOG: dict[str, tuple[str, str, str]] = {
     "log_profile": ("Watcher", "Log detail", "standard or verbose."),
     "asr_models_dir": ("Engines", "Extra models folder", "Voxtral / Granite models."),
     "asr_eval_python": ("Engines", "Python for extra engines", "Blank = venv_asr_eval."),
+    "theme": ("Appearance", "Theme", "Harbor, Midnight, Graphite or Aurora. Unknown values use Harbor."),
     "lm_studio_base_url": ("Handoff", "LM Studio URL", ""),
     "lm_studio_model": ("Handoff", "LM Studio model", ""),
     "default_post_transcript_destination": ("Handoff", "Default handoff destination", ""),
@@ -65,7 +66,7 @@ CATALOG: dict[str, tuple[str, str, str]] = {
     "youtube_transcript_concurrency": ("YouTube captions", "Parallel downloads", ""),
     "youtube_transcript_also_save_txt": ("YouTube captions", "Also save .txt", ""),
 }
-SECTION_ORDER = ["Transcription", "Speed", "Watcher", "Folders", "Engines", "Handoff", "YouTube captions", "API keys", "Other"]
+SECTION_ORDER = ["Transcription", "Speed", "Watcher", "Folders", "Engines", "Handoff", "YouTube captions", "API keys", "Appearance", "Other"]
 
 
 def describe(key: str) -> tuple[str, str, str]:

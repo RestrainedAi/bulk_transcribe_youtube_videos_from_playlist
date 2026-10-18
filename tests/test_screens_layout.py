@@ -195,4 +195,4 @@ def test_search_buttons_disabled_without_selection() -> None:
 
 def test_version_label_reads_app_version() -> None:
     import app_version
-    assert app_version.APP_VERSION == "1.3.0"
+    assert app_version.APP_VERSION == "1.3.1"
