@@ -507,6 +507,9 @@ class YouTubeDownloader:
         self._thread: threading.Thread | None = None
         self._cancel = threading.Event()
         self._log_path = log_path
+        # Optional: captions_fn(link) -> dict | None. A dict means the video was transcribed from
+        # its YouTube captions and the audio download is skipped (see youtube_captions.py).
+        self.captions_fn: Callable[[YouTubeLink], dict | None] | None = None
         self._state = {
             "running": False, "total": 0, "done": 0, "already": 0, "failed": 0,
             "percent": None, "current": "", "message": "", "errors": [],
@@ -528,7 +531,7 @@ class YouTubeDownloader:
         known = tuple(Path(p) for p in known_dirs)
         with self._lock:
             if not self._state["running"]:
-                self._state.update(total=0, done=0, already=0, failed=0, errors=[], percent=None)
+                self._state.update(total=0, done=0, already=0, failed=0, captions=0, errors=[], percent=None)
             for link in links:
                 if link.key in self._keys:
                     repeats += 1
@@ -615,6 +618,20 @@ class YouTubeDownloader:
                 def progress(pct: float | None, title: str, _vid: str = link.id) -> None:
                     self._set(percent=pct, current=title or _vid)
 
+                if link.kind == "video" and self.captions_fn is not None:
+                    self._set(current=link.id, percent=None, message="Checking YouTube captions")
+                    try:
+                        res = self.captions_fn(link)
+                    except Exception as exc:  # noqa: BLE001  captions are optional; Whisper is the fallback
+                        res = None
+                        self._log(f"CAPTIONS {link.id}: error {exc}; using Whisper")
+                    if res:
+                        with self._lock:
+                            self._state["done"] += 1
+                            self._state["captions"] = self._state.get("captions", 0) + 1
+                        self._log(f"OK {link.id} -> captions ({res.get('source')}) {res.get('paths', {}).get('txt')}")
+                        continue
+
                 with self._lock:
                     n = self._state["done"] + self._state["already"] + self._state["failed"] + 1
                     self._state.update(current=link.id, percent=0.0, message=f"Downloading {n} of {self._state['total']}")
@@ -647,6 +664,8 @@ def summary_line(s: dict) -> str:
     parts = []
     if s.get("total"):
         parts.append(f"{s.get('done', 0)} of {s['total']} downloaded")
+    if s.get("captions"):
+        parts.append(f"{s['captions']} from YouTube captions")
     if s.get("already"):
         parts.append(f"{s['already']} already here")
     if s.get("failed"):

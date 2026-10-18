@@ -2,6 +2,29 @@
 
 All notable changes to the Transcription Workbench.
 
+## 1.2.2 (2026-10-17)
+
+- Music no longer comes out mostly empty. Whisper's speech filter treated singing
+  as noise and dropped whole verses; the next kept line was then stretched across
+  the hole (one line covering 22:51-30:17 on a test video).
+- New decode profiles: **auto** (new default), **speech** (the old "robust"),
+  **music** (speech filter off, no prompt, no silence skipping, no_speech 0.9) and
+  **legacy**. Auto transcribes with speech settings first and, if the result has
+  long gaps or stretched lines (or mean no_speech_prob is above 0.8), redoes the
+  file once with music settings ("music profile retry" in the log).
+- **Use YouTube captions when available** (Settings, on by default): YouTube links
+  use the video's own captions (manual first, then original-language auto
+  captions; never machine-translated) in seconds, with rate limiting and HTTP 429
+  retries. Whisper runs when there are no captions, the fetch fails, or the
+  captions fail the missed-audio check. Each segment records its `source`
+  (youtube_manual, youtube_auto or whisper).
+- **Missed-audio check**: transcripts store `coverage_warnings` in the JSON and in
+  `<name>.flags.txt`; the Dashboard shows "Possibly missed audio at mm:ss-mm:ss"
+  under Latest transcripts. Limits: lines over 30 s, gaps over 60 s (including the
+  start and end of the file); settings `coverage_max_block_s`, `coverage_max_gap_s`.
+- New modules `coverage_check.py` and `youtube_captions.py`; tests in
+  `tests/test_music_captions.py`.
+
 ## 1.2.1 (2026-10-17)
 
 - Dashboard fits at about 1000x1024: compact control bar across the top (Start/Stop

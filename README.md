@@ -6,7 +6,7 @@ graphics card. It is part of the Aeonimus workflow: it imports link lists from
 the YouTube URL Lister and shares finished transcripts with the Comment
 Workbench.
 
-**Current version: 1.2.1** (see [CHANGELOG.md](CHANGELOG.md)). The version
+**Current version: 1.2.2** (see [CHANGELOG.md](CHANGELOG.md)). The version
 shows in the window title and the sidebar, and lives in `app_version.py`.
 
 ## Who it's for
@@ -57,6 +57,16 @@ The launcher runs a quick self-check (`startup_selfcheck.py`) and then
   Workbench.
 - Search, review and correct transcripts, and send a finished transcript to
   NotebookLM, LM Studio or an AI service (optional, your own keys).
+
+- **Music and songs**: the default decode profile, **auto**, notices when a
+  transcript skipped audio (long gaps or one line stretched over minutes) and
+  redoes the file once with **music** settings. Pick **music** in Settings to
+  always use them (slower: about 2 minutes for a 33-minute song).
+- **Use YouTube captions when available** (Settings, on by default): YouTube links
+  are transcribed from the video's own captions in seconds; the audio is only
+  downloaded and run through Whisper when there are none.
+- **Possibly missed audio** warnings appear under Latest transcripts and in each
+  transcript's `.flags.txt`.
 
 Private or members-only videos cannot be downloaded; the app says so plainly.
 

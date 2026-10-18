@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 import asr_engines
 import transcript_search
+import coverage_check
 from output_paths import ensure_output_dirs
 from watcher_settings import load_settings
 
@@ -148,14 +149,29 @@ ALLOWED_WHISPER_MODELS = (
     "distil-large-v3",
     "large-v3-turbo",
 )
-ALLOWED_DECODE_PROFILES = ("robust", "legacy")
-DEFAULT_DECODE_PROFILE = "robust"
+# 'speech' is the UI name of 'robust'. 'music' keeps singing (no speech filter). 'auto' runs
+# speech first and redoes the file once with music when the coverage check flags it.
+ALLOWED_DECODE_PROFILES = ("auto", "robust", "speech", "music", "legacy")
+DEFAULT_DECODE_PROFILE = "auto"
+AUTO_MUSIC_NO_SPEECH = 0.8
 
 
 def resolve_decode_profile(settings: dict | None = None) -> str:
     data = settings if isinstance(settings, dict) else _SETTINGS
     raw = str(os.environ.get("WHISPER_DECODE_PROFILE") or data.get("whisper_decode_profile") or "").strip().lower()
+    if raw == "speech":
+        return "robust"
     return raw if raw in ALLOWED_DECODE_PROFILES else DEFAULT_DECODE_PROFILE
+
+
+def resolve_coverage_limits(settings: dict | None = None) -> tuple[float, float]:
+    data = settings if isinstance(settings, dict) else _SETTINGS
+    try:
+        block = float(data.get("coverage_max_block_s") or 30)
+        gap = float(data.get("coverage_max_gap_s") or 60)
+    except (TypeError, ValueError):
+        block, gap = 30.0, 60.0
+    return block, gap
 
 
 def resolve_whisper_language(settings: dict | None = None) -> str | None:
@@ -170,6 +186,8 @@ def transcribe_kwargs_for_profile(profile: str, vad_filter: bool, language: str 
     kwargs = {"beam_size": 5, "vad_filter": vad_filter, "language": language, "task": "transcribe"}
     if profile == "legacy":
         return kwargs
+    if profile in ("speech", "auto"):
+        profile = "robust"  # 'auto' starts with the speech settings
     kwargs.update(
         vad_filter=True,
         vad_parameters={"min_silence_duration_ms": 500, "speech_pad_ms": 300},
@@ -183,6 +201,16 @@ def transcribe_kwargs_for_profile(profile: str, vad_filter: bool, language: str 
         hallucination_silence_threshold=2.0,
         word_timestamps=True,
     )
+    if profile == "music":
+        # Singing is not 'speech' to the VAD, so the filter must stay off; no prompt, and
+        # silence-skipping off, or whole verses get dropped and the next line is stretched.
+        kwargs.update(
+            vad_filter=False,
+            hallucination_silence_threshold=None,
+            initial_prompt=None,
+            no_speech_threshold=0.9,
+        )
+        kwargs.pop("vad_parameters", None)
     return kwargs
 DEFAULT_WHISPER_GPU_MODEL = "large-v3"
 DEFAULT_WHISPER_CPU_MODEL = "medium"
@@ -215,12 +243,13 @@ def build_whisper_attempts(
     gpu = normalize_whisper_model(gpu_model, DEFAULT_WHISPER_GPU_MODEL)
     cpu = normalize_whisper_model(cpu_model, DEFAULT_WHISPER_CPU_MODEL)
     attempts: list[tuple[str, str, str, bool, str]] = []
-    if use_gpu and profile == "robust":
+    if use_gpu and profile in ("robust", "speech", "auto", "music"):
         # RTX 3090 (24 GB) runs large-v3 in full float16 comfortably; int8 is the fallback.
+        vad = profile != "music"
         attempts.extend(
             [
-                (gpu, "cuda", "float16", True, "gpu_fp16"),
-                (gpu, "cuda", "int8_float16", True, "gpu_int8"),
+                (gpu, "cuda", "float16", vad, "gpu_fp16"),
+                (gpu, "cuda", "int8_float16", vad, "gpu_int8"),
             ]
         )
     elif use_gpu:
@@ -426,84 +455,101 @@ async def compute_transcript_with_whisper_from_audio_func(
         profile = resolve_decode_profile()
         language = resolve_whisper_language()
         print(f"Whisper decode profile: {profile}; language: {language or 'auto'}")
-        attempts = build_whisper_attempts(use_gpu, gpu_model, cpu_model, profile)
-        if use_gpu:
-            print(f"CUDA is available. Starting with GPU transcription ({gpu_model}).")
-        else:
-            print(f"CUDA unavailable or disabled. Starting with CPU transcription ({cpu_model}).")
+        run_profile = "robust" if profile == "auto" else profile
+        max_block, max_gap = resolve_coverage_limits()
+        whisper_pass = 0
+        while True:
+            whisper_pass += 1
+            attempts = build_whisper_attempts(use_gpu, gpu_model, cpu_model, run_profile)
+            if use_gpu:
+                print(f"CUDA is available. Starting with GPU transcription ({gpu_model}).")
+            else:
+                print(f"CUDA unavailable or disabled. Starting with CPU transcription ({cpu_model}).")
 
-        last_exception = None
-        for model_size, device, compute_type, vad_filter, label in attempts:
-            if device == "cpu" and use_gpu:
+            last_exception = None
+            for model_size, device, compute_type, vad_filter, label in attempts:
+                if device == "cpu" and use_gpu:
+                    print(
+                        f"WARNING: GPU transcription failed for {audio_file_name}; falling back to the weaker CPU model "
+                        f"'{model_size}'. Segments will be tagged with model={model_size}/cpu so this is visible in the output."
+                    )
                 print(
-                    f"WARNING: GPU transcription failed for {audio_file_name}; falling back to the weaker CPU model "
-                    f"'{model_size}'. Segments will be tagged with model={model_size}/cpu so this is visible in the output."
+                    f"Whisper attempt {label} for {audio_file_name}: "
+                    f"model={model_size} device={device} compute_type={compute_type} vad_filter={vad_filter}"
                 )
-            print(
-                f"Whisper attempt {label} for {audio_file_name}: "
-                f"model={model_size} device={device} compute_type={compute_type} vad_filter={vad_filter}"
-            )
-            combined_transcript_text = ""
-            combined_transcript_text_list_of_metadata_dicts = []
-            list_of_transcript_sentences = []
-            try:
-                model = get_whisper_model(model_size, device, compute_type)
-                run_kwargs = transcribe_kwargs_for_profile(profile, vad_filter, language)
-                batched, batch_size = resolve_batched_mode()
-                if batched and device == "cuda":
-                    print(f"Fast batched mode on (batch_size={batch_size}).")
-                    transcribe_fn = BatchedInferencePipeline(model).transcribe
-                    run_kwargs = dict(batched_transcribe_kwargs(run_kwargs), batch_size=batch_size)
-                else:
-                    transcribe_fn = model.transcribe
-                with tqdm(total=audio_duration_seconds, desc=f"Transcribing {audio_file_name}", unit="s") as pbar:
-                    segments, info = await asyncio.to_thread(transcribe_fn, audio_file_path, **run_kwargs)
-                    detected_language = getattr(info, "language", None)
-                    detected_language_prob = round(float(getattr(info, "language_probability", 0) or 0), 3)
-                    print(f"Language: {detected_language} (p={detected_language_prob}, forced={language is not None})")
-                    for segment in segments:
-                        pbar.update(max(0.0, segment.end - segment.start))
-                        preview = " ".join(segment.text.split())[:120]
-                        print(
-                            f"Segment [{segment.start:.2f}s->{segment.end:.2f}s] "
-                            f"{audio_file_name}: {preview}"
-                        )
-                        if progress_callback is not None:
-                            try:
-                                progress_callback(segment.start, segment.end, segment.text)
-                            except Exception as cb_exc:  # a progress-file hiccup must never abort a transcription
-                                print(f"Progress update skipped: {type(cb_exc).__name__}: {cb_exc}")
-                        combined_transcript_text += segment.text + " "
-                        sentences = sophisticated_sentence_splitter(segment.text)
-                        list_of_transcript_sentences.extend(sentences)
-                        metadata = {
-                            "start": round(segment.start, 2),
-                            "end": round(segment.end, 2),
-                            "text": segment.text,
-                            "avg_logprob": round(segment.avg_logprob, 2),
-                            "no_speech_prob": round(segment.no_speech_prob, 3),
-                            "compression_ratio": round(segment.compression_ratio, 2),
-                            "language": detected_language,
-                            "language_probability": detected_language_prob,
-                            "model": f"{model_size}/{device}/{compute_type}",
-                        }
-                        combined_transcript_text_list_of_metadata_dicts.append(metadata)
-                if combined_transcript_text_list_of_metadata_dicts:
-                    print(f"Whisper attempt {label} succeeded with {len(combined_transcript_text_list_of_metadata_dicts)} segments.")
-                    break
-                print(f"Whisper attempt {label} returned no segments for {audio_file_name}.")
-            except Exception as exc:
-                last_exception = exc
-                _WHISPER_MODEL_CACHE.pop((model_size, device, compute_type), None)
-                print(
-                    f"Whisper attempt {label} failed for {audio_file_name}: "
-                    f"{type(exc).__name__}: {exc}"
-                )
-                continue
-        if not combined_transcript_text_list_of_metadata_dicts and last_exception is not None:
-            raise RuntimeError(
-                f"all_whisper_attempts_failed:{type(last_exception).__name__}:{last_exception}"
-            ) from last_exception
+                combined_transcript_text = ""
+                combined_transcript_text_list_of_metadata_dicts = []
+                list_of_transcript_sentences = []
+                try:
+                    model = get_whisper_model(model_size, device, compute_type)
+                    run_kwargs = transcribe_kwargs_for_profile(run_profile, vad_filter, language)
+                    batched, batch_size = resolve_batched_mode()
+                    if batched and device == "cuda":
+                        print(f"Fast batched mode on (batch_size={batch_size}).")
+                        transcribe_fn = BatchedInferencePipeline(model).transcribe
+                        run_kwargs = dict(batched_transcribe_kwargs(run_kwargs), batch_size=batch_size)
+                    else:
+                        transcribe_fn = model.transcribe
+                    with tqdm(total=audio_duration_seconds, desc=f"Transcribing {audio_file_name}", unit="s") as pbar:
+                        segments, info = await asyncio.to_thread(transcribe_fn, audio_file_path, **run_kwargs)
+                        detected_language = getattr(info, "language", None)
+                        detected_language_prob = round(float(getattr(info, "language_probability", 0) or 0), 3)
+                        print(f"Language: {detected_language} (p={detected_language_prob}, forced={language is not None})")
+                        for segment in segments:
+                            pbar.update(max(0.0, segment.end - segment.start))
+                            preview = " ".join(segment.text.split())[:120]
+                            print(
+                                f"Segment [{segment.start:.2f}s->{segment.end:.2f}s] "
+                                f"{audio_file_name}: {preview}"
+                            )
+                            if progress_callback is not None:
+                                try:
+                                    progress_callback(segment.start, segment.end, segment.text)
+                                except Exception as cb_exc:  # a progress-file hiccup must never abort a transcription
+                                    print(f"Progress update skipped: {type(cb_exc).__name__}: {cb_exc}")
+                            combined_transcript_text += segment.text + " "
+                            sentences = sophisticated_sentence_splitter(segment.text)
+                            list_of_transcript_sentences.extend(sentences)
+                            metadata = {
+                                "start": round(segment.start, 2),
+                                "end": round(segment.end, 2),
+                                "text": segment.text,
+                                "avg_logprob": round(segment.avg_logprob, 2),
+                                "no_speech_prob": round(segment.no_speech_prob, 3),
+                                "compression_ratio": round(segment.compression_ratio, 2),
+                                "language": detected_language,
+                                "language_probability": detected_language_prob,
+                                "model": f"{model_size}/{device}/{compute_type}",
+                                "profile": run_profile,
+                                "source": "whisper",
+                            }
+                            combined_transcript_text_list_of_metadata_dicts.append(metadata)
+                    if combined_transcript_text_list_of_metadata_dicts:
+                        print(f"Whisper attempt {label} succeeded with {len(combined_transcript_text_list_of_metadata_dicts)} segments.")
+                        break
+                    print(f"Whisper attempt {label} returned no segments for {audio_file_name}.")
+                except Exception as exc:
+                    last_exception = exc
+                    _WHISPER_MODEL_CACHE.pop((model_size, device, compute_type), None)
+                    print(
+                        f"Whisper attempt {label} failed for {audio_file_name}: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                    continue
+            if not combined_transcript_text_list_of_metadata_dicts and last_exception is not None:
+                raise RuntimeError(
+                    f"all_whisper_attempts_failed:{type(last_exception).__name__}:{last_exception}"
+                ) from last_exception
+            if profile == "auto" and whisper_pass == 1 and combined_transcript_text_list_of_metadata_dicts:
+                first_warn = coverage_check.coverage_warnings(
+                    combined_transcript_text_list_of_metadata_dicts, audio_duration_seconds, max_block, max_gap)
+                mean_ns = coverage_check.mean_no_speech(combined_transcript_text_list_of_metadata_dicts)
+                if first_warn or mean_ns > AUTO_MUSIC_NO_SPEECH:
+                    why = "; ".join(coverage_check.summary_lines(first_warn)[:3]) or f"mean no_speech_prob {mean_ns:.2f}"
+                    print(f"Whisper music profile retry for {audio_file_name}: {why}")
+                    run_profile = "music"
+                    continue
+            break
     if not use_openai_api_for_transcription:
         try:
             del model
@@ -541,8 +587,35 @@ async def compute_transcript_with_whisper_from_audio_func(
     json_file_path = os.path.join(COMPLETED_JSON_DIR, f"{audio_file_name}.json")
     df.to_json(json_file_path, orient='records', indent=4, force_ascii=False)
     remove_unwanted_segments_from_json(json_file_path)
+    try:
+        record_coverage(json_file_path, audio_file_name, combined_transcript_text_list_of_metadata_dicts,
+                        audio_duration_seconds if not use_openai_api_for_transcription else None)
+    except Exception as exc:  # a warning pass must never lose the transcript
+        print(f"Coverage check skipped: {type(exc).__name__}: {exc}")
     transcript_search.after_transcript(audio_file_name, COMPLETED_JSON_DIR, COMPLETED_TRANSCRIPTS_DIR)
     return combined_transcript_text, combined_transcript_text_list_of_metadata_dicts, list_of_transcript_sentences
+
+def record_coverage(json_file_path: str, stem: str, segments: list[dict], duration: float | None) -> list[dict]:
+    """Add 'coverage_warnings' to every JSON segment and a section to <stem>.flags.txt."""
+    max_block, max_gap = resolve_coverage_limits()
+    warnings = coverage_check.coverage_warnings(segments, duration, max_block, max_gap)
+    with open(json_file_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    for s in data:
+        if isinstance(s, dict):
+            s["coverage_warnings"] = warnings
+    with open(json_file_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+    if warnings:
+        flags = os.path.join(os.path.dirname(json_file_path), f"{stem}.flags.txt")
+        with open(flags, "a", encoding="utf-8") as f:
+            f.write("\nPossibly missed audio (coverage check):\n")
+            for line in coverage_check.summary_lines(warnings):
+                f.write(f"  {line}\n")
+        print(f"Coverage check: {len(warnings)} warning(s) for {stem}: "
+              + "; ".join(coverage_check.describe(w) for w in warnings[:5]))
+    return warnings
+
 
 async def process_video_or_playlist(
     url, max_simultaneous_downloads, max_workers_transcribe, *, single_video=None

@@ -1,0 +1,8 @@
+{"events": [
+ {"tStartMs": 0, "dDurationMs": 1000, "id": 1},
+ {"tStartMs": 1000, "dDurationMs": 4000, "segs": [{"utf8": "Your love is"}, {"utf8": " my quiet shelter"}]},
+ {"tStartMs": 3000, "dDurationMs": 10, "aAppend": 1, "segs": [{"utf8": "\n"}]},
+ {"tStartMs": 4000, "dDurationMs": 3000, "segs": [{"utf8": "[Music]"}]},
+ {"tStartMs": 7000, "dDurationMs": 5000, "segs": [{"utf8": "when every   light"}, {"utf8": " begins to fade"}]},
+ {"tStartMs": 9000, "dDurationMs": 100, "segs": [{"utf8": "  "}]}
+]}
