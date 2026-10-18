@@ -6,7 +6,7 @@ graphics card. It is part of the Aeonimus workflow: it imports link lists from
 the YouTube URL Lister and shares finished transcripts with the Comment
 Workbench.
 
-**Current version: 1.3.0** (see [CHANGELOG.md](CHANGELOG.md)). The version
+**Current version: 1.3.1** (see [CHANGELOG.md](CHANGELOG.md)). Pick a skin (Harbor, Midnight, Graphite or Aurora) in Settings > Appearance. The version
 shows in the window title and the sidebar, and lives in `app_version.py`.
 
 ## Who it's for

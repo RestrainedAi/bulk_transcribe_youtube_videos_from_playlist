@@ -17,6 +17,7 @@ import psutil
 
 import threading
 
+import themes
 import transcript_search
 import youtube_intake
 import youtube_captions
@@ -58,36 +59,45 @@ STOP_SCRIPT = ROOT / "stop_watcher.ps1"
 SINGLE_INSTANCE_PORT = 45219
 
 # Kinetic Console palette — matched to .archive/assets/kinetic_console_reference/code_DesignGuide.html
-BG_MAIN    = "#121415"   # surface / background
-BG_SIDE    = "#1a1c1d"   # surface-container-low (sidebar)
-BG_CARD    = "#1e2021"   # surface-container (cards)
-BG_HEAD    = "#0c0e0f"   # surface-container-lowest (topbar / ink areas)
-BG_SOFT    = "#1a1c1d"   # alias for sidebar areas
-TOPBAR_BG  = "#0c0e0f"   # surface-container-lowest
-SIDEBAR_BG = "#1a1c1d"   # surface-container-low
-SURFACE_INK = "#0c0e0f"  # deepest surface — log backgrounds
-FIELD_BG   = "#333536"   # surface-container-highest (inputs)
+# Colours come from the selected skin (themes.py); Harbor is the default.
+_C = themes.panel_constants(load_settings(ROOT).get("theme"))
+PRIMARY_HOVER = _C["PRIMARY_HOVER"]
+DANGER_HOVER = _C["DANGER_HOVER"]
+WARNING_HOVER = _C["WARNING_HOVER"]
+DANGER_ACTIVE = _C["DANGER_ACTIVE"]
+CARD_HILITE = _C["CARD_HILITE"]
+ROW_ERROR = _C["ROW_ERROR"]
+ROW_WARN = _C["ROW_WARN"]
+BG_MAIN = _C["BG_MAIN"]
+BG_SIDE = _C["BG_SIDE"]
+BG_CARD = _C["BG_CARD"]
+BG_HEAD = _C["BG_HEAD"]
+BG_SOFT = _C["BG_SOFT"]
+TOPBAR_BG = _C["TOPBAR_BG"]
+SIDEBAR_BG = _C["SIDEBAR_BG"]
+SURFACE_INK = _C["SURFACE_INK"]
+FIELD_BG = _C["FIELD_BG"]
 
-ACCENT       = "#8dcdff"  # primary blue
-ACCENT_GREEN = "#3ce36a"  # tertiary / success green
-ACCENT_MINT  = "#3ce36a"  # alias
-ACCENT_RED   = "#ffb4ab"  # error
-ACCENT_GOLD  = "#afcbd8"  # secondary (replaces gold — no gold in design system)
+ACCENT = _C["ACCENT"]
+ACCENT_GREEN = _C["ACCENT_GREEN"]
+ACCENT_MINT = _C["ACCENT_MINT"]
+ACCENT_RED = _C["ACCENT_RED"]
+ACCENT_GOLD = _C["ACCENT_GOLD"]
 
-FG      = "#e2e2e3"   # on-surface
-FG_DIM  = "#bdc8d3"   # on-surface-variant
+FG = _C["FG"]
+FG_DIM = _C["FG_DIM"]
 
-BG_LOG     = "#0c0e0f"   # surface-container-lowest (log pane)
-WARN_BG    = "#93000a"   # error-container
-CARD_BORDER = "#3e4851"  # outline-variant
-OUTLINE_SOFT = "#3e4851" # outline-variant
-BG_HIGH    = "#282a2b"   # surface-container-high
-OUTLINE    = "#88929c"   # outline
-PRIMARY_FIXED = "#cae6ff"
-ON_PRIMARY_FIXED_VARIANT = "#004b70"
-INVERSE_PRIMARY = "#006493"
-SECONDARY_CONTAINER = "#334d58"
-ON_ERROR_CONTAINER = "#ffdad6"
+BG_LOG = _C["BG_LOG"]
+WARN_BG = _C["WARN_BG"]
+CARD_BORDER = _C["CARD_BORDER"]
+OUTLINE_SOFT = _C["OUTLINE_SOFT"]
+BG_HIGH = _C["BG_HIGH"]
+OUTLINE = _C["OUTLINE"]
+PRIMARY_FIXED = _C["PRIMARY_FIXED"]
+ON_PRIMARY_FIXED_VARIANT = _C["ON_PRIMARY_FIXED_VARIANT"]
+INVERSE_PRIMARY = _C["INVERSE_PRIMARY"]
+SECONDARY_CONTAINER = _C["SECONDARY_CONTAINER"]
+ON_ERROR_CONTAINER = _C["ON_ERROR_CONTAINER"]
 
 FONT_HEADLINE = "Bahnschrift"
 FONT_BODY = "Segoe UI Variable"
@@ -95,27 +105,27 @@ FONT_BODY_FALLBACK = "Segoe UI"
 FONT_MONO = "Cascadia Mono"
 
 # Dashboard redesign tokens (Figma "Workbench tokens", Dark) - px sizes via negative Tk font sizes
-D_BG_DEEP = "#0c0e0f"
-D_BG = "#121415"
-D_SURFACE = "#1e2021"
-D_SURFACE_2 = "#1a1c1d"
-D_RAISED = "#282a2b"
-D_INPUT = "#333536"
-D_NAV_SEL = "#07152a"
-D_BORDER = "#3e4851"
-D_ACCENT = "#8dcdff"
-D_PRIMARY = "#004b70"
-D_SUCCESS = "#3ce36a"
-D_SUCCESS_SURFACE = "#0f2a19"
-D_DANGER = "#93000a"
-D_DANGER_TEXT = "#ffb4ab"
-D_DANGER_SURFACE = "#2a1717"
-D_TEXT = "#e2e2e3"
-D_MUTED = "#bdc8d3"
+D_BG_DEEP = _C["D_BG_DEEP"]
+D_BG = _C["D_BG"]
+D_SURFACE = _C["D_SURFACE"]
+D_SURFACE_2 = _C["D_SURFACE_2"]
+D_RAISED = _C["D_RAISED"]
+D_INPUT = _C["D_INPUT"]
+D_NAV_SEL = _C["D_NAV_SEL"]
+D_BORDER = _C["D_BORDER"]
+D_ACCENT = _C["D_ACCENT"]
+D_PRIMARY = _C["D_PRIMARY"]
+D_SUCCESS = _C["D_SUCCESS"]
+D_SUCCESS_SURFACE = _C["D_SUCCESS_SURFACE"]
+D_DANGER = _C["D_DANGER"]
+D_DANGER_TEXT = _C["D_DANGER_TEXT"]
+D_DANGER_SURFACE = _C["D_DANGER_SURFACE"]
+D_TEXT = _C["D_TEXT"]
+D_MUTED = _C["D_MUTED"]
 # 1.3.0 token additions (Figma VariableID:8:2-8:4)
-D_WARNING = "#ffb84d"
-D_WARNING_SURFACE = "#2b2112"
-D_TEXT_DISABLED = "#6b7480"
+D_WARNING = _C["D_WARNING"]
+D_WARNING_SURFACE = _C["D_WARNING_SURFACE"]
+D_TEXT_DISABLED = _C["D_TEXT_DISABLED"]
 F_APP = ("Segoe UI", -16, "bold")
 F_PAGE = ("Segoe UI Semibold", -20)
 F_SECTION = ("Segoe UI Semibold", -14)
@@ -380,6 +390,8 @@ class ControlPanel(tk.Tk):
         self.set_whisper_batched = tk.BooleanVar(value=bool(self._settings.get("whisper_batched", False)))
         self.set_skip_duplicates = tk.BooleanVar(value=bool(self._settings.get("skip_duplicates", True)))
         self.set_completed_audio_dir = tk.StringVar(value=str(self._settings.get("completed_audio_dir", "completed_audio")))
+        self._skin = themes.normalize(self._settings.get("theme"))
+        self.set_theme = tk.StringVar(value=self._skin)
 
         self._handoff_initialized = False
         self._last_handoff_completed_path: str | None = None
@@ -457,7 +469,7 @@ class ControlPanel(tk.Tk):
         )
         style.map(
             "Danger.TButton",
-            background=[("active", "#b3261e"), ("pressed", "#b3261e")],
+            background=[("active", DANGER_ACTIVE), ("pressed", DANGER_ACTIVE)],
             foreground=[("active", ON_ERROR_CONTAINER)],
         )
         style.configure("TCheckbutton", background=BG_CARD, foreground=FG)
@@ -735,7 +747,7 @@ class ControlPanel(tk.Tk):
         base = dict(font=F_BODY, padding=(12, 6), relief="flat", borderwidth=1, focusthickness=0)
         st.configure("Dash.Primary.TButton", background=D_PRIMARY, foreground=D_ACCENT, bordercolor=D_ACCENT,
                      lightcolor=D_PRIMARY, darkcolor=D_PRIMARY, focuscolor=D_PRIMARY, **base)
-        st.map("Dash.Primary.TButton", background=[("disabled", D_SURFACE_2), ("active", "#005a86")],
+        st.map("Dash.Primary.TButton", background=[("disabled", D_SURFACE_2), ("active", PRIMARY_HOVER)],
                foreground=[("disabled", D_MUTED)])
         st.configure("Dash.Secondary.TButton", background=D_RAISED, foreground=D_TEXT, bordercolor=D_BORDER,
                      lightcolor=D_RAISED, darkcolor=D_RAISED, focuscolor=D_RAISED, **base)
@@ -743,7 +755,7 @@ class ControlPanel(tk.Tk):
                foreground=[("disabled", D_MUTED)])
         st.configure("Dash.Danger.TButton", background=D_DANGER, foreground=D_DANGER_TEXT, bordercolor=D_DANGER,
                      lightcolor=D_DANGER, darkcolor=D_DANGER, focuscolor=D_DANGER, **base)
-        st.map("Dash.Danger.TButton", background=[("disabled", D_SURFACE_2), ("active", "#ad0010")],
+        st.map("Dash.Danger.TButton", background=[("disabled", D_SURFACE_2), ("active", DANGER_HOVER)],
                foreground=[("disabled", D_MUTED)])
         small = dict(base, padding=(12, 4))
         st.configure("Dash.Small.TButton", background=D_RAISED, foreground=D_TEXT, bordercolor=D_BORDER,
@@ -1130,8 +1142,8 @@ class ControlPanel(tk.Tk):
         st.configure("Dash.SmallSecondary.TButton", background=D_RAISED, foreground=D_TEXT, bordercolor=D_BORDER,
                      lightcolor=D_RAISED, darkcolor=D_RAISED, focuscolor=D_RAISED, **small)
         maps = {
-            "Dash.Primary.TButton": "#005a86", "Dash.Secondary.TButton": D_INPUT, "Dash.Danger.TButton": "#ad0010",
-            "Dash.Small.TButton": D_INPUT, "Dash.SmallSecondary.TButton": D_INPUT, "Dash.Warning.TButton": "#3a2c16",
+            "Dash.Primary.TButton": PRIMARY_HOVER, "Dash.Secondary.TButton": D_INPUT, "Dash.Danger.TButton": DANGER_HOVER,
+            "Dash.Small.TButton": D_INPUT, "Dash.SmallSecondary.TButton": D_INPUT, "Dash.Warning.TButton": WARNING_HOVER,
         }
         for name, active in maps.items():
             st.map(name, background=[("disabled", D_SURFACE_2), ("active", active)],
@@ -2012,8 +2024,9 @@ class ControlPanel(tk.Tk):
         ("stall_timeout_seconds", "Stall timeout"), ("start_scan_existing", "Scan-existing"),
         ("skip_duplicates", "Skip duplicates"), ("handoff_try_api_first", "LLM API first"),
         ("log_profile", "Log profile"), ("watch_dir", "Watch folder"), ("completed_video_dir", "Completed videos"),
-        ("completed_audio_dir", "Completed audio"), ("library", "Library location"),
+        ("completed_audio_dir", "Completed audio"), ("library", "Library location"), ("theme", "Theme"),
     )
+    THEME_HELP = "Harbor is the original look. Midnight, Graphite and Aurora are alternative skins."
     PROFILE_HELP = {
         "auto": "Transcribes normally; if the result has big gaps or stretched lines, redoes it once with music settings.",
         "speech": "Speech filter on. Best for talks, lectures and podcasts.",
@@ -2033,6 +2046,7 @@ class ControlPanel(tk.Tk):
             "skip_duplicates": self.set_skip_duplicates, "handoff_try_api_first": self.set_handoff_api,
             "log_profile": self.set_profile, "watch_dir": self.set_watch_dir, "completed_video_dir": self.set_completed_dir,
             "completed_audio_dir": self.set_completed_audio_dir, "library": self.set_library_dir,
+            "theme": self.set_theme,
         }
 
     def _settings_snapshot(self) -> dict:
@@ -2212,6 +2226,13 @@ class ControlPanel(tk.Tk):
         check(tf, "whisper_batched", self.set_whisper_batched, "Fast batched mode (about 4x faster)")
         check(tf, "asr_crosscheck", self.set_asr_crosscheck, "Voxtral cross-check",
               "Runs a second local model on flagged spots and marks lines where the two disagree.")
+        # Appearance (v1.3.1 skins)
+        st["ap"], apf = self._dcard(o)
+        self._dlabel(apf, "Appearance", font=F_SECTION).pack(fill="x")
+        self._theme_note_var = tk.StringVar(value=self.THEME_HELP)
+        field(apf, "theme", "Theme", combo(self.set_theme, themes.SKIN_NAMES), help_var=self._theme_note_var)
+        self.set_theme.trace_add("write", lambda *_a: self._theme_note_var.set(
+            self.THEME_HELP if self.set_theme.get() == self._skin else "Click Save changes to apply this theme."))
         # Watcher
         st["wa"], wf = self._dcard(o)
         self._dlabel(wf, "Watcher", font=F_SECTION).pack(fill="x")
@@ -2293,7 +2314,7 @@ class ControlPanel(tk.Tk):
         st["c1"] = tk.Frame(o, bg=D_BG)
         st["c2"] = tk.Frame(o, bg=D_BG)
         st["c3"] = tk.Frame(o, bg=D_BG)
-        for w in (st["tx"], st["wa"], st["ho"], st["ad"], st["fo"]):
+        for w in (st["tx"], st["ap"], st["wa"], st["ho"], st["ad"], st["fo"]):
             w.lift()
         for var in self._settings_vars().values():
             var.trace_add("write", self._settings_dirty_update)
@@ -2304,7 +2325,7 @@ class ControlPanel(tk.Tk):
     def _layout_settings(self, *, compact: bool) -> None:
         st = self._st
         o = st["outer"]
-        self._forget(*self._header_parts(st["hdr"]), st["tx"], st["wa"], st["ho"], st["ad"], st["fo"], st["cols"],
+        self._forget(*self._header_parts(st["hdr"]), st["tx"], st["ap"], st["wa"], st["ho"], st["ad"], st["fo"], st["cols"],
                      st["c1"], st["c2"], st["c3"])
         self._pack_header(st["hdr"], o)
         cols = st["cols"]
@@ -2317,7 +2338,7 @@ class ControlPanel(tk.Tk):
             st["c1"].grid(in_=cols, row=0, column=0, sticky="nsew", padx=(0, 6))
             st["c2"].grid(in_=cols, row=0, column=1, sticky="nsew", padx=(6, 0))
             st["tx"].pack(in_=st["c1"], fill="x")
-            for w in (st["wa"], st["ho"], st["ad"]):
+            for w in (st["ap"], st["wa"], st["ho"], st["ad"]):
                 w.pack(in_=st["c2"], fill="x", pady=(0, 12))
             st["fo"].pack(in_=o, fill="x", pady=(12, 0))
         else:
@@ -2327,7 +2348,7 @@ class ControlPanel(tk.Tk):
             st["c2"].grid(in_=cols, row=0, column=1, sticky="nsew", padx=(4, 4))
             st["c3"].grid(in_=cols, row=0, column=2, sticky="nsew", padx=(8, 0))
             st["tx"].pack(in_=st["c1"], fill="x")
-            for w in (st["wa"], st["ho"], st["ad"]):
+            for w in (st["ap"], st["wa"], st["ho"], st["ad"]):
                 w.pack(in_=st["c2"], fill="x", pady=(0, 12))
             st["fo"].pack(in_=st["c3"], fill="x")
         if not getattr(self, "_adv_user_toggled", False):
@@ -2379,6 +2400,7 @@ class ControlPanel(tk.Tk):
             "whisper_batched": bool(self.set_whisper_batched.get()),
             "skip_duplicates": bool(self.set_skip_duplicates.get()),
             "completed_audio_dir": self.set_completed_audio_dir.get().strip(),
+            "theme": themes.normalize(self.set_theme.get()),
         })
         return vals, []
 
@@ -2398,6 +2420,93 @@ class ControlPanel(tk.Tk):
         self._settings_saved_at = datetime.now().strftime("%H:%M")
         self._refresh_handoff_flags()
         self._settings_mark_clean()
+        new_skin = themes.normalize(self._settings.get("theme"))
+        if new_skin != self._skin:
+            self.apply_skin(new_skin)
+
+    # ---------- Skins (v1.3.1) ----------
+    _COLOR_OPTS = ("background", "foreground", "activebackground", "activeforeground", "highlightbackground",
+                   "highlightcolor", "insertbackground", "selectbackground", "selectforeground",
+                   "disabledforeground", "troughcolor", "selectcolor", "readonlybackground", "disabledbackground")
+
+    def apply_skin(self, name: str) -> int:
+        """Switch skin live: rebind colour constants, rebuild ttk styles, recolour plain Tk widgets.
+
+        Returns how many widget options could not be recoloured (0 means fully applied).
+        """
+        new = themes.normalize(name)
+        old = self._skin
+        cmap = themes.color_map(old, new)
+        globals().update(themes.panel_constants(new))
+        self._skin = new
+        failed = 0
+        for fn in (self._apply_theme, self._apply_screen_styles, self._apply_dash_styles):
+            try:
+                fn()
+            except Exception:  # noqa: BLE001
+                failed += 1
+
+        def remap(v: object) -> str | None:
+            return cmap.get(str(v).lower()) if isinstance(v, str) and v.startswith("#") else None
+
+        stack: list[tk.Misc] = [self]
+        while stack:
+            w = stack.pop()
+            stack.extend(w.winfo_children())
+            if isinstance(w, ttk.Widget):
+                if isinstance(w, ttk.Treeview):
+                    failed += self._recolor_tags(w, cmap, ("foreground", "background"))
+                continue
+            for opt in self._COLOR_OPTS:
+                try:
+                    nv = remap(w.cget(opt))
+                except tk.TclError:
+                    continue
+                if nv:
+                    try:
+                        w.configure(**{opt: nv})
+                    except tk.TclError:
+                        failed += 1
+            if isinstance(w, tk.Text):
+                failed += self._recolor_tags(w, cmap, ("foreground", "background", "selectbackground"))
+            elif isinstance(w, tk.Canvas):
+                for item in w.find_all():
+                    for opt in ("fill", "outline", "activefill"):
+                        try:
+                            nv = remap(w.itemcget(item, opt))
+                        except tk.TclError:
+                            continue
+                        if nv:
+                            w.itemconfigure(item, **{opt: nv})
+        for opt, tok in (("*TCombobox*Listbox.background", D_INPUT), ("*TCombobox*Listbox.foreground", D_TEXT),
+                         ("*TCombobox*Listbox.selectBackground", D_NAV_SEL),
+                         ("*TCombobox*Listbox.selectForeground", D_ACCENT)):
+            self.option_add(opt, tok)
+        if hasattr(self, "_theme_note_var"):
+            self._theme_note_var.set(self.THEME_HELP if not failed else "Restart the control panel to finish applying the theme.")
+        self.update_idletasks()
+        return failed
+
+    @staticmethod
+    def _recolor_tags(w: tk.Misc, cmap: dict, opts: tuple[str, ...]) -> int:
+        try:
+            tags = w.tk.splitlist(w.tk.call(str(w), "tag", "names"))
+        except tk.TclError:
+            return 0
+        for tag in tags:
+            for opt in opts:
+                try:
+                    v = str(w.tk.call(str(w), "tag", "configure", tag, "-" + opt)[-1] if isinstance(w, tk.Text) else
+                            w.tk.call(str(w), "tag", "configure", tag, "-" + opt))
+                except tk.TclError:
+                    continue
+                nv = cmap.get(v.lower()) if v.startswith("#") else None
+                if nv:
+                    try:
+                        w.tk.call(str(w), "tag", "configure", tag, "-" + opt, nv)
+                    except tk.TclError:
+                        return 1
+        return 0
 
     def _settings_discard(self) -> None:
         try:
@@ -2731,7 +2840,7 @@ class ControlPanel(tk.Tk):
                 fg=FG,
                 buttonbackground=BG_CARD,
                 highlightthickness=1,
-                highlightbackground="#1e2a38",
+                highlightbackground=CARD_HILITE,
             ).grid(row=row, column=1, sticky="w", pady=6)
 
     def _start_watcher(self) -> None:
@@ -3273,7 +3382,7 @@ class ControlPanel(tk.Tk):
             insertbackground=FG,
             relief="flat",
             highlightthickness=1,
-            highlightbackground="#1e2a38",
+            highlightbackground=CARD_HILITE,
             font=("Segoe UI", 10),
         )
         sys_prompt.insert("1.0", str(self._settings.get("handoff_llm_system_prompt", "")))
@@ -3426,6 +3535,8 @@ class ControlPanel(tk.Tk):
         self.set_whisper_batched.set(bool(s.get("whisper_batched", False)))
         self.set_skip_duplicates.set(bool(s.get("skip_duplicates", True)))
         self.set_completed_audio_dir.set(str(s.get("completed_audio_dir", "completed_audio")))
+        if hasattr(self, "set_theme"):
+            self.set_theme.set(themes.normalize(s.get("theme")))
         if hasattr(self, "set_cov_block"):
             self.set_cov_block.set(str(s.get("coverage_max_block_s", 30)))
             self.set_cov_gap.set(str(s.get("coverage_max_gap_s", 60)))
@@ -3879,7 +3990,7 @@ class ControlPanel(tk.Tk):
         if err and (running_flag or recent_failure):
             msg_parts.append(f"Error: {friendly_err}")
         if show_banner:
-            bg = "#5c1010" if (err or stalled) else "#5c4a10"
+            bg = ROW_ERROR if (err or stalled) else ROW_WARN
             self.banner_frame.configure(bg=bg)
             self.banner_label.configure(text=" · ".join(msg_parts), fg="#fff", bg=bg)
             if not self.banner_frame.winfo_ismapped():

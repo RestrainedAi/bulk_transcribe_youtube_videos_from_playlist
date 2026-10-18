@@ -2,6 +2,24 @@
 
 All notable changes to the Transcription Workbench.
 
+## 1.3.1 (2026-10-17)
+
+Four user-selectable skins, from the Figma "Workbench tokens" modes (Palette options page).
+
+- Skins: **Harbor** (the original look, default), **Midnight**, **Graphite** and **Aurora**.
+  Each defines the same 20 tokens; the values live in `themes.py` (one dict per skin) and
+  match `docs/design/palettes.json`. Every text pair meets 4.5:1 contrast in every skin.
+- Every hard-coded colour in the control panel now comes from the skin, including the 1.3.0
+  warning tokens, button hover shades, the Monitor card highlight and the Queue row colours.
+  Harbor keeps its exact v1.3.0 values; the other skins derive those shades from their tokens.
+- Settings has a new **Appearance** group with a **Theme** dropdown. It saves through the
+  sticky Save bar as `"theme"` in `watcher_settings.json`; unknown or missing values fall back
+  to Harbor.
+- The theme applies live on Save (ttk styles are rebuilt and plain Tk widgets, Text/Treeview
+  tags and Canvas items are recoloured). If anything can't be recoloured, Settings shows
+  "Restart the control panel to finish applying the theme."
+- New tests: `tests/test_themes.py`.
+
 ## 1.3.0 (2026-10-17)
 
 Redesign of every page except the Dashboard layout (Queue, Monitor, Logs, Live
