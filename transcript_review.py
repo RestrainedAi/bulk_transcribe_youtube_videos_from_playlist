@@ -15,6 +15,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+import coverage_check
 import transcript_search
 
 LOW_LOGPROB = -1.0
@@ -64,8 +65,18 @@ def list_transcripts(json_dir: str | Path) -> list[dict]:
         edited = sum(1 for s in segs if "original_text" in s)
         reviewed = sum(1 for s in segs if reason(s) and s.get("reviewed"))
         out.append({"stem": p.stem, "json_path": str(p), "segments": len(segs), "flagged": flagged,
-                    "edited": edited, "reviewed": reviewed})
+                    "edited": edited, "reviewed": reviewed, "coverage": len(coverage_items(p, segs))})
     return out
+
+
+def coverage_items(json_path: str | Path, segs: list[dict] | None = None) -> list[dict]:
+    """Stored coverage warnings, or computed ones for transcripts made before 1.2.2."""
+    if segs is None:
+        segs = _load(Path(json_path))
+    stored = coverage_check.warnings_from_json_data(segs)
+    if stored or any("coverage_warnings" in s for s in segs):
+        return stored
+    return coverage_check.coverage_warnings(segs)
 
 
 def flagged_items(json_path: str | Path, include_all_edited: bool = True) -> list[dict]:

@@ -25,26 +25,20 @@ completed_transcripts\ .txt, completed_json\ .json, completed_csv\ .csv
 | `app_version.py` | App name and version (single source). |
 | `youtube_intake.py` | Reads YouTube and Suno links from text, CSV or TXT; expands playlists; downloads audio only with yt-dlp; downloads Suno songs from the public song page; builds the "Add YouTube / Suno links" card. No Tk at module level except the card builder. |
 | `aeonimus_handoff.py` | The Aeonimus handoff contract: shared `handoff.json`, inbox to library moves, import ledger, publishing transcripts, moving the library. No Tk, unit tested. |
+| `coverage_check.py` | Missed-audio check: flags lines over 30 s and gaps over 60 s (start and end of file included). Used by the transcriber, transcript review and the Dashboard. |
+| `youtube_captions.py` | "Use YouTube captions when available": picks a caption track (manual > en-orig > en, never translated), rate-limits and retries HTTP 429, converts json3 to segments, writes txt/srt/vtt/json/csv and the library copy. Called by the download queue before the audio download; returns None to fall back to Whisper. |
 | `watch_and_transcribe.py` | The watcher: sees new or renamed files in the watch folder and queues them. |
 | `watch_transcribe_worker.py` | Transcribes one file with faster-whisper (GPU model large-v3-turbo by default) and writes .txt/.json/.csv. |
 | `watcher_settings.py` | Loads and saves `watcher_settings.json`. |
 | `watcher_telemetry.py` | Heartbeat and progress reporting. |
 | `post_transcript_handoff.py` | Optional: send a finished transcript to NotebookLM (clipboard), LM Studio or an AI service. |
 | `youtube_transcript_export.py`, `youtube_transcript_panel.py`, `scripts/yt_export_transcripts.py` | Separate tool: export YouTube's own captions to WebVTT/TXT (`Open_Youtube_Caption_Export.cmd`). |
-| `bulk_transcribe_youtube_videos_from_playlist.py` | The original command-line script from the upstream project. |
+| `bulk_transcribe_youtube_videos_from_playlist.py` | Whisper transcription core (started from the upstream script): decode profiles auto / speech (robust) / music / legacy, GPU-then-CPU attempts, the auto music retry, and `coverage_warnings` in the JSON and `.flags.txt`. |
 | `transcript_reader.html` | Simple reader for transcripts in a browser. |
 | `start_watcher.ps1`, `stop_watcher.ps1` | Start and stop the watcher from PowerShell. |
 | `tests/` | pytest suites (handoff, YouTube intake, Suno links, caption export, and more). |
 
-### Not committed to git yet
-
-These modules are used by the app today but are still uncommitted work in the
-folder: `asr_engines.py`, `file_fingerprint.py`, `output_paths.py`,
-`queue_control.py`, `safe_io.py`, `startup_selfcheck.py`, `support_tools.py`,
-`system_health.py`, `transcript_review.py`, `transcript_search.py`,
-`asr_eval_worker.py`, plus several test files. The committed code imports
-several of them, so a clean checkout of the branch does not run on its own
-until they are committed.
+Since the 2026-10-17 snapshot every module the app imports is committed.
 
 ## Storage
 

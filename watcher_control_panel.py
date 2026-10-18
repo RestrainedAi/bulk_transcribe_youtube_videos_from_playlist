@@ -19,6 +19,8 @@ import threading
 
 import transcript_search
 import youtube_intake
+import youtube_captions
+import coverage_check
 import aeonimus_handoff
 from app_version import APP_NAME, APP_VERSION
 import queue_control
@@ -341,6 +343,7 @@ class ControlPanel(tk.Tk):
         self.handoff_format_var = tk.StringVar(value="Raw text")
         self._refresh_job: str | None = None
         self.youtube = youtube_intake.YouTubeDownloader(log_path=ROOT / "logs" / "youtube_intake.log")
+        self.youtube.captions_fn = self._youtube_captions
         self.easy_status_var = tk.StringVar(
             value="One click: picks up the newest link list from the URL Lister, downloads the audio and starts transcribing."
         )
@@ -364,7 +367,8 @@ class ControlPanel(tk.Tk):
         self.set_handoff_api = tk.BooleanVar(value=bool(self._settings.get("handoff_try_api_first", False)))
         self.set_whisper_gpu = tk.StringVar(value=str(self._settings.get("whisper_gpu_model", "large-v3")))
         self.set_whisper_cpu = tk.StringVar(value=str(self._settings.get("whisper_cpu_model", "medium")))
-        self.set_whisper_profile = tk.StringVar(value=str(self._settings.get("whisper_decode_profile", "robust")))
+        self.set_whisper_profile = tk.StringVar(value=self._profile_label(self._settings.get("whisper_decode_profile", "auto")))
+        self.set_prefer_captions = tk.BooleanVar(value=bool(self._settings.get("prefer_youtube_captions", True)))
         self.set_whisper_language = tk.StringVar(value=str(self._settings.get("whisper_language", "auto")))
         _engine = str(self._settings.get("asr_engine", "whisper"))
         self.set_asr_engine = tk.StringVar(value=_engine if _engine in ("whisper", "voxtral-mini-3b", "granite-2b") else "whisper")
@@ -902,6 +906,9 @@ class ControlPanel(tk.Tk):
         self._dlabel(lh, "Latest transcripts", font=F_SECTION).pack(side="left")
         self._dlabel(lh, "Last 5 \u00b7 double-click to open", fg=D_MUTED).pack(side="right")
         self._build_latest_transcripts(lf)
+        self.coverage_warning_var = tk.StringVar(value="")
+        self._coverage_label = tk.Label(lf, textvariable=self.coverage_warning_var, fg="#f2b84b", bg=D_SURFACE,
+                                        anchor="w", justify="left", wraplength=420)
 
         # terminal quick actions
         self._d_quick, qf = self._dcard(outer)
@@ -1833,7 +1840,8 @@ class ControlPanel(tk.Tk):
                     "handoff_try_api_first": bool(self.set_handoff_api.get()),
                     "whisper_gpu_model": self.set_whisper_gpu.get().strip(),
                     "whisper_cpu_model": self.set_whisper_cpu.get().strip(),
-                    "whisper_decode_profile": self.set_whisper_profile.get().strip(),
+                    "whisper_decode_profile": self.set_whisper_profile.get().strip() or "auto",
+                    "prefer_youtube_captions": bool(self.set_prefer_captions.get()),
                     "whisper_language": self.set_whisper_language.get().strip() or "auto",
                     "asr_engine": self.set_asr_engine.get().strip() or "whisper",
                     "asr_crosscheck": bool(self.set_asr_crosscheck.get()),
@@ -1872,7 +1880,7 @@ class ControlPanel(tk.Tk):
         tk.Label(exec_grid, text="CPU Whisper model", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=5, column=0, sticky="w", pady=8)
         ttk.Combobox(exec_grid, textvariable=self.set_whisper_cpu, values=whisper_models, state="readonly", width=18).grid(row=5, column=1, sticky="w", pady=8)
         tk.Label(exec_grid, text="Decode profile", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=6, column=0, sticky="w", pady=8)
-        ttk.Combobox(exec_grid, textvariable=self.set_whisper_profile, values=("robust", "legacy"), state="readonly", width=18).grid(row=6, column=1, sticky="w", pady=8)
+        ttk.Combobox(exec_grid, textvariable=self.set_whisper_profile, values=("auto", "speech", "music", "legacy"), state="readonly", width=18).grid(row=6, column=1, sticky="w", pady=8)
         tk.Label(exec_grid, text="Language (auto or code)", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=7, column=0, sticky="w", pady=8)
         ttk.Combobox(exec_grid, textvariable=self.set_whisper_language, values=("auto", "en", "de", "es", "fr"), width=18).grid(row=7, column=1, sticky="w", pady=8)
         tk.Label(exec_grid, text="Transcription engine", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=8, column=0, sticky="w", pady=8)
@@ -1883,6 +1891,8 @@ class ControlPanel(tk.Tk):
         ttk.Checkbutton(exec_grid, variable=self.set_whisper_batched).grid(row=10, column=1, sticky="w", pady=8)
         tk.Label(exec_grid, text="Skip files already transcribed", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=11, column=0, sticky="w", pady=8)
         ttk.Checkbutton(exec_grid, variable=self.set_skip_duplicates).grid(row=11, column=1, sticky="w", pady=8)
+        tk.Label(exec_grid, text="Use YouTube captions when available", fg=FG_DIM, bg=BG_CARD, anchor="w").grid(row=12, column=0, sticky="w", pady=8)
+        ttk.Checkbutton(exec_grid, variable=self.set_prefer_captions).grid(row=12, column=1, sticky="w", pady=8)
 
         right = self._card(grid, autopack=False)
         right.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
@@ -2237,6 +2247,7 @@ class ControlPanel(tk.Tk):
             return
         self._latest_sig = sig
         self._latest_paths = paths
+        self._update_coverage_warning(paths)
         try:
             tv.delete(*tv.get_children())
             if not paths:
@@ -2248,6 +2259,51 @@ class ControlPanel(tk.Tk):
                 tv.insert("", "end", iid=str(i), text=p.name, values=(when, "\u203a"))
         except tk.TclError:
             pass
+
+    @staticmethod
+    def _profile_label(raw) -> str:
+        p = str(raw or "auto").strip().lower()
+        return "speech" if p == "robust" else (p if p in ("auto", "speech", "music", "legacy") else "auto")
+
+    def _update_coverage_warning(self, paths: list[Path]) -> None:
+        """'Possibly missed audio at mm:ss-mm:ss' for the newest transcripts that have coverage warnings."""
+        lab = getattr(self, "_coverage_label", None)
+        if lab is None:
+            return
+        lines = []
+        for p in paths:
+            try:
+                data = json.loads(p.with_suffix(".json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            warns = coverage_check.warnings_from_json_data(data)
+            if warns:
+                spans = ", ".join(coverage_check.describe(w).replace("Possibly missed audio at ", "") for w in warns[:3])
+                more = f" (+{len(warns) - 3} more)" if len(warns) > 3 else ""
+                lines.append(f"\u26a0 {p.stem[:48]}: Possibly missed audio at {spans}{more}")
+        self.coverage_warning_var.set("\n".join(lines[:3]))
+        try:
+            if lines:
+                lab.pack(fill="x", pady=(6, 0))
+            else:
+                lab.pack_forget()
+        except tk.TclError:
+            pass
+
+    def _youtube_captions(self, link) -> dict | None:
+        """Runs on the download thread: captions first when the setting is on, else None (download + Whisper)."""
+        s = self._settings or {}
+        if not s.get("prefer_youtube_captions", True):
+            return None
+        dirs = {k: str(v) for k, v in resolved_output_dirs(ROOT, s).items()}
+        try:
+            block = float(s.get("coverage_max_block_s") or 30)
+            gap = float(s.get("coverage_max_gap_s") or 60)
+        except (TypeError, ValueError):
+            block, gap = 30.0, 60.0
+        return youtube_captions.try_captions(
+            link.url, link.id, dirs, lang=str(s.get("youtube_transcript_lang") or "en"),
+            max_block=block, max_gap=gap, ydl_opts=youtube_intake._ydl_base_opts(), log=self.youtube._log)
 
     def _selected_latest(self) -> Path | None:
         if not getattr(self, "_latest_paths", None):
@@ -2603,7 +2659,8 @@ class ControlPanel(tk.Tk):
         self.set_handoff_api.set(bool(s.get("handoff_try_api_first", False)))
         self.set_whisper_gpu.set(str(s.get("whisper_gpu_model", "large-v3")))
         self.set_whisper_cpu.set(str(s.get("whisper_cpu_model", "medium")))
-        self.set_whisper_profile.set(str(s.get("whisper_decode_profile", "robust")))
+        self.set_whisper_profile.set(self._profile_label(s.get("whisper_decode_profile", "auto")))
+        self.set_prefer_captions.set(bool(s.get("prefer_youtube_captions", True)))
         self.set_whisper_language.set(str(s.get("whisper_language", "auto")))
         self.set_asr_engine.set(str(s.get("asr_engine", "whisper")))
         self.set_asr_crosscheck.set(bool(s.get("asr_crosscheck", False)))
