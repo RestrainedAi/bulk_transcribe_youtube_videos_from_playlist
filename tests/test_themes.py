@@ -90,7 +90,7 @@ def test_live_switch_changes_colors_without_crashing() -> None:
         pytest.skip(f"no display: {exc}")
     try:
         app.geometry("1000x1024+0+0")
-        app._skin = "Harbor"
+        # Start from the really active skin (module colours follow the saved theme, e.g. Graphite).
         for _ in range(3):
             app.update()
         for name in ("Aurora", "Midnight", "Graphite", "Harbor"):

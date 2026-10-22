@@ -12,7 +12,7 @@ from pathlib import Path
 
 _EVENT = re.compile(
     r"^(?P<ts>\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \[watch\] "
-    r"(?P<kind>queued|processing|completed|failed|stalled|skipped|requeued|resuming interrupted file): "
+    r"(?P<kind>queued|processing|completed|failed|stalled|skipped|requeued|needs_review|resuming interrupted file): "
     r"(?P<rest>.*)$"
 )
 
@@ -36,7 +36,7 @@ def failed_from_log(log_path: str | os.PathLike) -> list[dict]:
         kind, rest = m.group("kind"), m.group("rest")
         if kind in ("failed", "stalled"):
             path, _sep, error = rest.partition(" :: ")
-        elif kind == "completed":
+        elif kind in ("completed", "needs_review"):
             path, error = rest.partition(" -> ")[0], ""
         else:
             path, error = rest, ""
@@ -68,3 +68,13 @@ def confirm_text(present: int, missing: int) -> str:
     if missing:
         msg += f"\n\n{missing} failed job(s) will be skipped because the source file is missing."
     return msg
+
+
+def classify(jobs: list[dict]) -> dict[str, list[dict]]:
+    """Split failed jobs into crash / content / other (v1.4.0 status badge)."""
+    import data_library
+    out: dict[str, list[dict]] = {"crash": [], "content": [], "other": []}
+    for j in jobs:
+        kind = "crash" if j.get("kind") == "stalled" else data_library.classify_error(j.get("error", ""))
+        out[kind].append(j)
+    return out

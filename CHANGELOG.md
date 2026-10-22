@@ -2,6 +2,27 @@
 
 All notable changes to the Transcription Workbench.
 
+## 1.4.0 (2026-10-22, test build)
+
+- **Shared data library.** Videos and transcripts can live outside the program folder, in the
+  Aeonimus Library shared with the Comment Workbench (`%APPDATA%\Aeonimus\handoff.json`,
+  set in Settings > Library). Layout: `transcription\incoming`, `transcription\needs-review`,
+  `transcription\transcripts|csv|json|completed-videos|completed-audio`; the shared
+  `transcripts\` copy the Comment Workbench reads is unchanged. `migrate_to_library.py` COPIES
+  the old folders with SHA-256 checks (dry run by default, `--apply` to copy), keeps the
+  originals, and only then points the settings at the library.
+- **needs-review.** Content failures (no speech found, no audio track, unreadable audio) are
+  moved (copy, hash check, remove) to `needs-review` with a `.needs-review.txt` reason, instead
+  of piling up as FAILED. Dashboard and Queue have "Open needs-review folder".
+- **Audio mode per job:** Speech (default), Speech over music, Music/lyrics, chosen when you
+  re-run from needs-review. See `docs/AUDIO_MODES.md` (incl. license notes).
+- **Watcher auto-off:** after a run, when the queue is empty, the watcher turns off unless
+  Settings > "Keep watching after run" is ticked (default off).
+- **Plain-language status** replaces "LOAD: FAULT": All good / Working / N files need review /
+  Engine crashed: see log. Hover for details, click to open the folder or log; clears itself.
+- Fixed garbled "â€”" text in the panel (source was double-encoded UTF-8).
+- Theme tests no longer assume the Harbor skin; they pass with any saved theme (e.g. Graphite).
+
 ## 1.3.1 (2026-10-17)
 
 Four user-selectable skins, from the Figma "Workbench tokens" modes (Palette options page).

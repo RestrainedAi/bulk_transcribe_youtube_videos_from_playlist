@@ -108,7 +108,11 @@ def test_queue_controls_and_table_columns() -> None:
         assert list(app.queue_tree["columns"]) == ["file", "state", "engine", "progress", "eta"]
         assert int(app.queue_tree.column("file", "width")) == 332
         assert app.queue_tree.cget("style") == "Screen.Treeview"
-        assert wcp.D_WARNING == "#ffb84d" and wcp.D_WARNING_SURFACE == "#2b2112" and wcp.D_TEXT_DISABLED == "#6b7480"
+        # Colours depend on the saved skin (1.4.0): compare against whatever skin is active.
+        import themes
+        want = themes.panel_constants(app._skin)
+        for k in ("D_WARNING", "D_WARNING_SURFACE", "D_TEXT_DISABLED"):
+            assert getattr(wcp, k) == want[k], k
     finally:
         app._on_close()
 
@@ -195,4 +199,4 @@ def test_search_buttons_disabled_without_selection() -> None:
 
 def test_version_label_reads_app_version() -> None:
     import app_version
-    assert app_version.APP_VERSION == "1.3.2"
+    assert app_version.APP_VERSION == "1.4.0"

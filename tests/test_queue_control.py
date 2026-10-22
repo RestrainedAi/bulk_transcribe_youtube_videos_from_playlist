@@ -26,7 +26,7 @@ def test_pause_and_skip(tmp_path):
 
 def test_corrupt_control_file(tmp_path):
     (tmp_path / qc.CONTROL_NAME).write_text("{oops")
-    assert qc.load(str(tmp_path)) == {"paused": False, "order": [], "skip": [], "rerun": []}
+    assert qc.load(str(tmp_path)) == {"paused": False, "order": [], "skip": [], "rerun": [], "modes": {}}
 
 
 def test_progress_and_eta():

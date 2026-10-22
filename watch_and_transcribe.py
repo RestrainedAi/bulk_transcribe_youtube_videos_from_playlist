@@ -396,6 +396,22 @@ class StatusTracker:
             self._write_status()
         self._append_log(f"[watch] failed: {src_path} :: {error}")
 
+    def mark_needs_review(self, src_path: str, dest_path: str, error: str) -> None:
+        """v1.4.0: a content failure (e.g. no speech) was moved to needs-review; not counted as FAILED."""
+        with self._lock:
+            self.state["status"] = "idle"
+            self.state["phase"] = "watching"
+            self.state["processed_count"] += 1
+            self.state["needs_review_count"] = int(self.state.get("needs_review_count") or 0) + 1
+            self.state["queue_count"] = max(0, self.state["queue_count"] - 1)
+            self.state["last_event"] = f"needs_review:{src_path}"
+            self._sync_current_job_locked()
+            self._write_status()
+        self._append_log(f"[watch] needs_review: {src_path} -> {dest_path} :: {error}")
+
+    def mark_auto_off(self) -> None:
+        self._append_log("[watch] queue empty after run; watcher turning off (Keep watching after run is off)")
+
     def mark_requeued(self, src_path: str) -> None:
         """A failed job was re-run from the panel: take it off the FAILED counter and clear its error."""
         with self._lock:
@@ -761,6 +777,30 @@ def interrupted_files_from_status(status_file: str, watch_dir: str, completed_di
     return out
 
 
+def fail_or_review(src_path: str, error: str, status: "StatusTracker", watch_dir: str) -> None:
+    """Content failures go to needs-review (copy, hash check, remove original); crashes stay FAILED."""
+    try:
+        import data_library
+        import queue_control
+        repo_root = Path(os.path.dirname(os.path.abspath(__file__)))
+        settings = load_settings(repo_root)
+        if (settings.get("auto_needs_review", True) and data_library.classify_error(error) == "content"
+                and os.path.isfile(src_path)):
+            mode = queue_control.mode_for(watch_dir, src_path)
+            folder = data_library.needs_review_dir(repo_root, settings)
+            dest = data_library.move_to_needs_review(src_path, error, folder, audio_mode=mode)
+            queue_control.forget_mode(watch_dir, src_path)
+            print(f"[watch] No usable speech in {src_path!r}; moved to needs-review: {dest}")
+            status.mark_needs_review(src_path, str(dest), error)
+            return
+    except Exception as exc:  # noqa: BLE001 - never lose the failure itself
+        print(f"[watch] needs-review move skipped: {type(exc).__name__}: {exc}")
+    status.mark_failed(src_path, error)
+
+
+AUDIO_MODE_PROFILE = {"speech_music": "speech_music", "music": "music"}
+
+
 async def transcribe_and_move(
     src_path: str,
     watch_dir: str,
@@ -835,6 +875,15 @@ async def transcribe_and_move(
             env["WHISPER_DECODE_PROFILE"] = str(worker_settings.get("whisper_decode_profile") or "auto")
             env["WHISPER_BATCHED"] = "1" if worker_settings.get("whisper_batched") else "0"
             env["WHISPER_BATCH_SIZE"] = str(worker_settings.get("whisper_batch_size") or 8)
+            try:
+                import queue_control
+                audio_mode = queue_control.mode_for(watch_dir, src_path)
+            except Exception:  # noqa: BLE001
+                audio_mode = "speech"
+            env["AUDIO_MODE"] = audio_mode
+            env["MUSIC_VOCAL_SEPARATION"] = "1" if worker_settings.get("music_vocal_separation", True) else "0"
+            if audio_mode in AUDIO_MODE_PROFILE:
+                env["WHISPER_DECODE_PROFILE"] = AUDIO_MODE_PROFILE[audio_mode]
             if force_cpu:
                 env["WHISPER_FORCE_CPU"] = "1"
             else:
@@ -916,7 +965,7 @@ async def transcribe_and_move(
                 error = progress_data.get("error", "transcription_failed")
                 print(f"[watch] Worker reported failed status for {src_path!r}.")
                 status.job_end(src_path)
-                status.mark_failed(src_path, error)
+                fail_or_review(src_path, error, status, watch_dir)
                 return
 
             if exit_code is not None:
@@ -938,7 +987,7 @@ async def transcribe_and_move(
                         f"worker exited with {exit_code}."
                     )
                     status.job_end(src_path)
-                    status.mark_failed(src_path, error)
+                    fail_or_review(src_path, error, status, watch_dir)
                     return
                 break
 
@@ -1049,6 +1098,13 @@ class VideoHandler(FileSystemEventHandler):
         self._max_jobs = max(1, int(max_concurrent_jobs))
         self._pending: list[str] = []  # arrival order; queue_control decides the actual order
         self._dispatcher: threading.Thread | None = None
+        self.jobs_finished = 0  # v1.4.0 auto-off: only turn off after something actually ran
+
+    def is_idle(self) -> bool:
+        with self._inflight_lock:
+            busy = self._inflight > 0
+        with self._lock:
+            return not busy and not self._queued and not self._pending and not self._active
 
     def wait_until_idle(self, poll_seconds: float = 0.25) -> None:
         while True:
@@ -1139,6 +1195,7 @@ class VideoHandler(FileSystemEventHandler):
         finally:
             with self._inflight_lock:
                 self._inflight -= 1
+                self.jobs_finished += 1
             try:
                 import queue_control
                 queue_control.forget(self.watch_dir, abs_path)
@@ -1198,6 +1255,21 @@ def scan_existing(handler: VideoHandler, watch_dir: str, completed_dir: str) -> 
             if is_media_path(path):
                 handler._schedule(path)
     handler.wait_until_idle()
+
+
+AUTO_OFF_IDLE_SECONDS = 10.0
+
+
+def should_auto_off(handler, repo_root, idle_since: float | None, now: float | None = None) -> bool:
+    """True when a run finished, the queue has been empty a few seconds and Keep watching is off."""
+    if idle_since is None or not handler.jobs_finished or not handler.is_idle():
+        return False
+    if ((now if now is not None else time.monotonic()) - idle_since) < AUTO_OFF_IDLE_SECONDS:
+        return False
+    try:
+        return not bool(load_settings(Path(repo_root)).get("keep_watching_after_run", False))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def main() -> None:
@@ -1369,12 +1441,21 @@ def main() -> None:
             f"[watch] Watching {watch_dir!r} -> completed {completed_dir!r} "
             "(Ctrl+C to stop)"
         )
+        idle_since: float | None = None
         while True:
             reconcile_orphaned_jobs(watch_dir, output_dirs, status, stall_timeout_seconds)
             try:
                 handler.process_reruns()
             except Exception as exc:
                 print(f"[watch] Re-run request failed: {exc}")
+            if should_auto_off(handler, repo_root, idle_since):
+                status.mark_auto_off()
+                print("[watch] Queue finished; turning the watcher off (tick 'Keep watching after run' to stay on).")
+                break
+            if handler.jobs_finished and handler.is_idle():
+                idle_since = idle_since or time.monotonic()
+            else:
+                idle_since = None
             if time.monotonic() - last_health > 30:
                 last_health = time.monotonic()
                 try:

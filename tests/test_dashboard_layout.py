@@ -111,7 +111,9 @@ def test_dashboard_states_and_auto_refresh_box() -> None:
         app._set_dashboard_state(running=True, stale=False)
         assert "Stop watcher" in str(app.power_btn.cget("text"))
         frame = app._badge_parts[0][0]
-        assert frame.cget("bg") == wcp.D_SUCCESS_SURFACE == "#0f2a19"
+        # colours follow the saved skin (1.4.0): compare with the active skin, not Harbor
+        import themes
+        assert frame.cget("bg") == wcp.D_SUCCESS_SURFACE == themes.panel_constants(app._skin)["D_SUCCESS_SURFACE"]
         app._set_dashboard_state(running=False, stale=False)
         assert "Start watcher" in str(app.power_btn.cget("text"))
         assert frame.cget("bg") == wcp.D_DANGER_SURFACE

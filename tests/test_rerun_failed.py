@@ -127,4 +127,4 @@ def test_mark_requeued_updates_counter(tmp_path):
 
 def test_version_bumped():
     import app_version
-    assert app_version.APP_VERSION == "1.3.2"
+    assert app_version.APP_VERSION == "1.4.0"

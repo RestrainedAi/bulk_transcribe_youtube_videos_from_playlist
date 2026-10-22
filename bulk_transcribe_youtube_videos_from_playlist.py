@@ -151,7 +151,7 @@ ALLOWED_WHISPER_MODELS = (
 )
 # 'speech' is the UI name of 'robust'. 'music' keeps singing (no speech filter). 'auto' runs
 # speech first and redoes the file once with music when the coverage check flags it.
-ALLOWED_DECODE_PROFILES = ("auto", "robust", "speech", "music", "legacy")
+ALLOWED_DECODE_PROFILES = ("auto", "robust", "speech", "speech_music", "music", "legacy")
 DEFAULT_DECODE_PROFILE = "auto"
 AUTO_MUSIC_NO_SPEECH = 0.8
 
@@ -201,6 +201,20 @@ def transcribe_kwargs_for_profile(profile: str, vad_filter: bool, language: str 
         hallucination_silence_threshold=2.0,
         word_timestamps=True,
     )
+    if profile == "speech_music":
+        # v1.4.0 "Speech over music": the default VAD (threshold 0.5) treats talk under a music bed
+        # as non-speech and drops it. Relax the VAD, keep long pads, don't skip "silence" (the
+        # music is not silence), and raise no_speech_threshold so a segment needs a stronger
+        # no-speech signal before Whisper throws it away.
+        kwargs.update(
+            vad_filter=vad_filter,
+            vad_parameters={"threshold": 0.25, "min_silence_duration_ms": 1500, "speech_pad_ms": 600},
+            hallucination_silence_threshold=None,
+            no_speech_threshold=0.8,
+            condition_on_previous_text=False,
+        )
+        if not vad_filter:
+            kwargs.pop("vad_parameters", None)
     if profile == "music":
         # Singing is not 'speech' to the VAD, so the filter must stay off; no prompt, and
         # silence-skipping off, or whole verses get dropped and the next line is stretched.
@@ -243,7 +257,7 @@ def build_whisper_attempts(
     gpu = normalize_whisper_model(gpu_model, DEFAULT_WHISPER_GPU_MODEL)
     cpu = normalize_whisper_model(cpu_model, DEFAULT_WHISPER_CPU_MODEL)
     attempts: list[tuple[str, str, str, bool, str]] = []
-    if use_gpu and profile in ("robust", "speech", "auto", "music"):
+    if use_gpu and profile in ("robust", "speech", "auto", "music", "speech_music"):
         # RTX 3090 (24 GB) runs large-v3 in full float16 comfortably; int8 is the fallback.
         vad = profile != "music"
         attempts.extend(

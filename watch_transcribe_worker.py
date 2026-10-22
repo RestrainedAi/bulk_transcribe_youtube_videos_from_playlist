@@ -55,10 +55,20 @@ def main() -> int:
         progress["last_segment_text"] = text[:200]
         write_progress(progress_path, progress)
 
+    audio_path = input_path
+    audio_mode = (os.environ.get("AUDIO_MODE") or "speech").strip().lower()
+    progress["audio_mode"] = audio_mode
+    if audio_mode == "music" and os.environ.get("MUSIC_VOCAL_SEPARATION", "1") == "1":
+        import vocal_separation
+        progress["status"] = "separating_vocals"
+        write_progress(progress_path, progress)
+        audio_path = vocal_separation.separate_vocals(input_path) or input_path
+        progress["vocals_separated"] = audio_path != input_path
+        write_progress(progress_path, progress)
     try:
         transcript_text, transcript_segments, _sentences = asyncio.run(
             bt.compute_transcript_with_whisper_from_audio_func(
-                input_path,
+                audio_path,
                 stem,
                 size_mb,
                 progress_callback=on_progress,

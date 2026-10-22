@@ -5,6 +5,7 @@ The panel writes <watch_dir>/queue_control.json; the watcher reads it before sta
   order:  [paths]    -> preferred order; files not listed keep arrival order after the listed ones
   skip:   [paths]    -> remove these from the queue (the files stay where they are)
   rerun:  [paths]    -> failed files to queue again (v1.3.2 "Re-run failed")
+  modes:  {path: mode} -> per-job audio mode (v1.4.0): speech | speech_music | music
 """
 from __future__ import annotations
 
@@ -37,6 +38,7 @@ def load(watch_dir: str) -> dict:
         "order": [str(p) for p in data.get("order") or [] if p],
         "skip": [str(p) for p in data.get("skip") or [] if p],
         "rerun": [str(p) for p in data.get("rerun") or [] if p],
+        "modes": {str(k): str(v) for k, v in (data.get("modes") or {}).items()} if isinstance(data.get("modes"), dict) else {},
     }
 
 
@@ -46,7 +48,8 @@ def save(watch_dir: str, data: dict) -> None:
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump({"paused": bool(data.get("paused")), "order": list(data.get("order") or []),
-                       "skip": list(data.get("skip") or []), "rerun": list(data.get("rerun") or [])}, f, indent=1)
+                       "skip": list(data.get("skip") or []), "rerun": list(data.get("rerun") or []),
+                       "modes": dict(data.get("modes") or {})}, f, indent=1)
         os.replace(tmp, path)
 
 
@@ -154,3 +157,37 @@ def job_progress(job: dict, now: float) -> tuple[float | None, float | None]:
     if seg <= 0 or elapsed <= 0:
         return frac, None
     return frac, max(0.0, (dur - seg) * elapsed / seg)
+
+
+AUDIO_MODES = ("speech", "speech_music", "music")
+AUDIO_MODE_LABELS = {"speech": "Speech", "speech_music": "Speech over music", "music": "Music/lyrics"}
+
+
+def normalize_mode(mode: str | None) -> str:
+    m = str(mode or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if m in ("speech_over_music", "speechmusic"):
+        m = "speech_music"
+    if m in ("music_lyrics", "lyrics", "music/lyrics"):
+        m = "music"
+    return m if m in AUDIO_MODES else "speech"
+
+
+def set_mode(watch_dir: str, path: str, mode: str) -> None:
+    """Remember the audio mode for one file (by full path, case-insensitive on Windows)."""
+    data = load(watch_dir)
+    m = normalize_mode(mode)
+    if m == "speech":
+        data["modes"].pop(_norm(path), None)
+    else:
+        data["modes"][_norm(path)] = m
+    save(watch_dir, data)
+
+
+def mode_for(watch_dir: str, path: str, default: str = "speech") -> str:
+    return normalize_mode(load(watch_dir)["modes"].get(_norm(path)) or default)
+
+
+def forget_mode(watch_dir: str, path: str) -> None:
+    data = load(watch_dir)
+    if data["modes"].pop(_norm(path), None) is not None:
+        save(watch_dir, data)

@@ -58,6 +58,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "asr_models_dir": "E:\\.lmstudio\\models\\ASR",
     "asr_eval_python": "",
     "theme": "Harbor",
+    # v1.4.0 shared data library. Empty = use the Aeonimus Library from
+    # %APPDATA%\\Aeonimus\\handoff.json (the same one the Comment Workbench uses).
+    "shared_library_dir": "",
+    "needs_review_dir": "",
+    "auto_needs_review": True,
+    "keep_watching_after_run": False,
+    "music_vocal_separation": True,
 }
 
 
@@ -108,6 +115,15 @@ def save_settings(repo_root: Path, updates: dict[str, Any]) -> None:
         data["completed_video_dir"] = data["completed_dir"]
     path = settings_path(repo_root)
     atomic_write_text(path, json.dumps(data, indent=2, ensure_ascii=False))
+    lib = str(updates.get("shared_library_dir") or "").strip()
+    if lib:
+        # One library for every Aeonimus app: keep handoff.json (Comment Workbench) in step.
+        try:
+            import aeonimus_handoff
+            if str(aeonimus_handoff.load_config().library) != lib:
+                aeonimus_handoff.save_config(library=lib)
+        except Exception:  # noqa: BLE001 - shared config is best-effort
+            pass
 
 
 def resolved_watch_dir(repo_root: Path, settings: dict[str, Any] | None = None) -> Path:
