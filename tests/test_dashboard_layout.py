@@ -119,7 +119,7 @@ def test_dashboard_states_and_auto_refresh_box() -> None:
         assert frame.cget("bg") == wcp.D_DANGER_SURFACE
         app.failed_var.set(3)
         app._color_counts()
-        assert app._stat_values["failed"].cget("fg") == wcp.D_DANGER_TEXT
+        assert app._stat_values["failed"].cget("fg") == wcp.D_WARNING  # v1.4.1: failures are amber, not red
         app.auto_refresh_var.set(False)
         assert app._poll_hint_var.get() == "Polling paused"
         app.auto_refresh_var.set(True)

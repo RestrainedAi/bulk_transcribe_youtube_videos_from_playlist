@@ -2,6 +2,17 @@
 
 All notable changes to the Transcription Workbench.
 
+## 1.4.1 (2026-10-22, test build)
+
+- **Big status light** at the top of the dashboard, readable at a glance: green and pulsing = RUNNING
+  (file name and "N of M"), gray = IDLE, amber = DONE with files that need review (count), red = STOPPED
+  with a plain reason and what to do. It comes from one snapshot, so nothing else can contradict it.
+- **Needs review list** with a count, a Re-run failed button (same re-run logic as 1.3.2) and an
+  "Open needs-review folder" link. Failures from earlier runs stay here and never show red during a new run.
+- **Details** (phase, PIDs, heartbeat, last error...) is now a collapsible box with a clickable header and
+  arrow, closed by default; open/closed is remembered (setting `dashboard_details_open`).
+- Removed the duplicate indicators: the old orange/red banner, the status-card dot and badge, and the
+  "FAULT" health word (now "CHECK LOG"). Failed counts use amber instead of red.
 ## 1.4.0 (2026-10-22, test build)
 
 - **Shared data library.** Videos and transcripts can live outside the program folder, in the

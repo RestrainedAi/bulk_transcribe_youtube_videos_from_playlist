@@ -838,6 +838,8 @@ class ControlPanel(tk.Tk):
         self.banner_label.pack(fill="x")
         self._autowrap(self.banner_label, pad=28)
 
+        self._build_run_light(outer)
+
         # page header (tall) / top bar (compact)
         self._d_head = tk.Frame(outer, bg=D_BG)
         self._d_titleblock = tk.Frame(outer, bg=D_BG)
@@ -895,21 +897,21 @@ class ControlPanel(tk.Tk):
 
         # watcher status card
         self._d_status = tk.Frame(outer, bg=D_SURFACE, highlightthickness=1, highlightbackground=D_BORDER)
-        sh = tk.Frame(self._d_status, bg=D_RAISED, height=40)
+        # v1.4.1: the dense info lives behind a collapsible "Details" header (closed by default, remembered).
+        sh = tk.Frame(self._d_status, bg=D_RAISED, height=40, cursor="hand2")
         sh.pack(fill="x")
         sh.pack_propagate(False)
-        self._status_dot = tk.Canvas(sh, width=8, height=8, bg=D_RAISED, highlightthickness=0, bd=0)
-        self._status_dot_id = self._status_dot.create_oval(0, 0, 8, 8, fill=D_SUCCESS, outline="")
-        self._status_dot.pack(side="left", padx=(12, 8))
-        tk.Label(sh, textvariable=self.summary_var, font=F_SECTION, fg=D_TEXT, bg=D_RAISED).pack(side="left")
-        # v1.4.0: plain-language status instead of the old load/fault badge; click for details / needs-review.
-        self._load_val = tk.Label(sh, textvariable=self.status_badge_var, font=F_MONO_LABEL, fg=D_SUCCESS, bg=D_RAISED,
-                                  cursor="hand2")
-        self._load_val.pack(side="right", padx=(0, 12))
-        self._load_val.bind("<Button-1>", lambda _e: self._on_status_badge_click())
-        self._badge_tip = HoverTip(self._load_val, lambda: self._status_info.tooltip)
+        self._details_open = bool(self._settings.get("dashboard_details_open", False))
+        self._details_arrow = tk.Label(sh, text="", font=F_SECTION, fg=D_ACCENT, bg=D_RAISED, cursor="hand2")
+        self._details_arrow.pack(side="left", padx=(12, 6))
+        self._details_title = tk.Label(sh, text="Details", font=F_SECTION, fg=D_TEXT, bg=D_RAISED, cursor="hand2")
+        self._details_title.pack(side="left")
+        self._details_hint = tk.Label(sh, text="", font=F_MONO_LABEL, fg=D_MUTED, bg=D_RAISED, cursor="hand2")
+        self._details_hint.pack(side="right", padx=(0, 12))
+        for w in (sh, self._details_arrow, self._details_title, self._details_hint):
+            w.bind("<Button-1>", lambda _e: self._toggle_details())
         sb = tk.Frame(self._d_status, bg=D_SURFACE)
-        sb.pack(fill="both", expand=True, padx=12, pady=12)
+        self._details_body = sb
         grid = tk.Frame(sb, bg=D_SURFACE)
         grid.pack(fill="x")
         grid.columnconfigure(0, minsize=120)
@@ -979,10 +981,9 @@ class ControlPanel(tk.Tk):
         self._d_qbtns2 = [
             ttk.Button(qf, text="Reconcile finished job", style="Dash.Small.TButton", command=self._reconcile_finished_job),
             ttk.Button(qf, text="Clear last error", style="Dash.Small.TButton", command=self._clear_last_error),
-            ttk.Button(qf, text="Re-run failed", style="Dash.Small.TButton", command=self._rerun_failed),
-            ttk.Button(qf, text="Open needs-review folder", style="Dash.Small.TButton", command=self._open_needs_review),
         ]
         self.quick_actions_frame = self._d_quick
+        self._build_review_card(outer)
 
         # containers for the two arrangements
         self._d_lower = tk.Frame(outer, bg=D_BG)
@@ -995,8 +996,10 @@ class ControlPanel(tk.Tk):
         self._d_right = tk.Frame(outer, bg=D_BG)
 
         # containers were created after the cards; raise the cards so they draw above them
-        for w in (self._d_url, self._d_links, self._d_status, self._d_counters, self._d_latest, self._d_ctrl):
+        for w in (self._d_url, self._d_links, self._d_status, self._d_counters, self._d_latest, self._d_ctrl,
+                  self._d_light, self._d_review):
             w.lift()
+        self._render_details()
         self._layout_dashboard(compact=False)
         self.bind("<Configure>", self._maybe_relayout_dashboard, add="+")
         self._set_dashboard_state(running=False, stale=False)
@@ -1034,12 +1037,13 @@ class ControlPanel(tk.Tk):
                      self._d_crumb, self._d_title, self._d_sub, self._d_badge, self._d_ctrl, self._d_stats,
                      self._d_url, self._d_links, self._d_status, self._d_counters, self._d_latest, self._d_quick,
                      self._d_quick_title, self._d_qrow1, self._d_qrow2, self._d_lower, self._d_cols,
-                     self._d_left, self._d_right, *self._d_qbtns1, *self._d_qbtns2)
+                     self._d_left, self._d_right, self._d_light, self._d_review, *self._d_qbtns1, *self._d_qbtns2)
         o = self._dash_outer
         gap = 12
         if banner_shown:
             self.banner_frame.pack(in_=o, fill="x", pady=(0, 10))
         if not compact:
+            self._d_light.pack(in_=o, fill="x", pady=(0, gap))
             self._d_head.pack(in_=o, fill="x", pady=(0, gap))
             self._d_titleblock.pack(in_=self._d_head, side="left")
             self._d_crumb_row.pack(in_=self._d_titleblock, fill="x")
@@ -1047,11 +1051,12 @@ class ControlPanel(tk.Tk):
             self._d_crumb.pack(in_=self._d_crumb_row, side="left")
             self._d_title.pack(in_=self._d_title_row, side="left")
             self._d_sub.pack(in_=self._d_title_row, side="left", padx=(12, 0), pady=(6, 0))
-            self._d_badge.pack(in_=self._d_head, side="right")
+            # v1.4.1: no second SYSTEM badge here; the run light above says it
             self._d_ctrl.pack(in_=o, fill="x", pady=(0, gap))
             self._d_stats.pack(in_=o, fill="x", pady=(0, gap))
             self._d_url.pack(in_=o, fill="x", pady=(0, gap))
             self._d_links.pack(in_=o, fill="x", pady=(0, gap))
+            self._d_review.pack(in_=o, fill="x", pady=(0, gap))
             self._d_status.pack(in_=o, fill="x", pady=(0, gap))
             self._d_lower.pack(in_=o, fill="x", pady=(0, gap))
             self._d_counters.grid(in_=self._d_lower, row=0, column=0, sticky="nsew", padx=(0, 6))
@@ -1065,15 +1070,10 @@ class ControlPanel(tk.Tk):
             for i, b in enumerate(self._d_qbtns2):
                 b.pack(in_=self._d_qrow2, side="left", padx=(0 if i == 0 else 8, 0))
         else:
+            # compact: the big run light takes the title's place in the top row (same height, more useful)
             self._d_head.pack(in_=o, fill="x", pady=(0, gap))
-            self._d_titleblock.pack(in_=self._d_head, side="left")
-            self._d_crumb_row.pack(in_=self._d_titleblock, fill="x")
-            self._d_title_row.pack(in_=self._d_titleblock, fill="x", pady=(4, 0))
-            self._d_crumb.pack(in_=self._d_crumb_row, side="left")
-            self._d_sub.pack(in_=self._d_crumb_row, side="left", padx=(12, 0))
-            self._d_title.pack(in_=self._d_title_row, side="left")
-            self._d_badge.pack(in_=self._d_title_row, side="left", padx=(12, 0))
-            self._d_ctrl.pack(in_=self._d_head, side="left", fill="x", expand=True, padx=(16, 0))
+            self._d_light.pack(in_=self._d_head, side="left", fill="both", expand=True)
+            self._d_ctrl.pack(in_=self._d_head, side="left", fill="y", padx=(16, 0))
             self._d_stats.pack(in_=o, fill="x", pady=(0, gap))
             self._d_cols.pack(in_=o, fill="x", pady=(0, gap))
             self._d_left.grid(in_=self._d_cols, row=0, column=0, sticky="nsew", padx=(0, gap))
@@ -1081,6 +1081,7 @@ class ControlPanel(tk.Tk):
             self._d_url.pack(in_=self._d_left, fill="x", pady=(0, gap))
             self._d_links.pack(in_=self._d_left, fill="x", pady=(0, gap))
             self._d_status.pack(in_=self._d_left, fill="x")
+            self._d_review.pack(in_=self._d_right, fill="x", pady=(0, gap))
             self._d_latest.pack(in_=self._d_right, fill="x", pady=(0, gap))
             self._d_counters.pack(in_=self._d_right, fill="both", expand=True)
             self._d_quick.pack(in_=o, fill="x")
@@ -1105,8 +1106,7 @@ class ControlPanel(tk.Tk):
         if hasattr(self, "_hdr_dot"):
             self._hdr_dot.itemconfigure(self._hdr_dot_id, fill=fg)
             self._hdr_status_lbl.configure(fg=fg)
-        if hasattr(self, "_status_dot"):
-            self._status_dot.itemconfigure(self._status_dot_id, fill=fg)
+        if hasattr(self, "_details_body"):
             self._update_status_badge(running=running, stale=stale)
         self._color_counts()
 
@@ -1119,12 +1119,12 @@ class ControlPanel(tk.Tk):
             except (tk.TclError, ValueError, TypeError):
                 return 0.0
         failed = num(self.failed_var)
-        self._stat_values["failed"].configure(fg=D_DANGER_TEXT if failed > 0 else D_MUTED)
+        self._stat_values["failed"].configure(fg=D_WARNING if failed > 0 else D_MUTED)
         self._stat_values["completed"].configure(fg=D_SUCCESS)
         for key, var in (("queue", self.queue_var), ("completed", self.completed_var),
                          ("failed", self.failed_var), ("processed", self.processed_var)):
             v = num(var)
-            color = (D_DANGER_TEXT if key == "failed" else D_ACCENT) if v > 0 else D_MUTED
+            color = (D_WARNING if key == "failed" else D_ACCENT) if v > 0 else D_MUTED
             self._counter_values[key].configure(fg=color)
 
     def _youtube_theme(self) -> dict:
@@ -3870,7 +3870,7 @@ class ControlPanel(tk.Tk):
         self._status_info = b
         self.status_badge_var.set(b.text)
         colour = {"ok": D_SUCCESS, "busy": D_ACCENT, "review": D_WARNING, "crash": D_DANGER_TEXT}.get(b.level, D_MUTED)
-        self._load_val.configure(fg=colour)
+        self._status_colour = colour  # kept for compatibility; the big run light is what the user sees
         if hasattr(self, "needs_review_text"):
             self.needs_review_text.set(f"Needs review ({review})" if review else "Needs review")
 
@@ -3883,6 +3883,166 @@ class ControlPanel(tk.Tk):
             open_path(log if log.is_file() else self._watch_dir())
         elif action == "failed" and hasattr(self, "_show_page"):
             self._show_page("queue")
+
+    # ------------------------------------------------------------------ v1.4.1 run light / needs review / details
+    LIGHT_FONT = ("Segoe UI Semibold", -22)
+
+    def _light_colours(self, level: str) -> tuple[str, str]:
+        return {"running": (D_SUCCESS, D_SUCCESS_SURFACE), "review": (D_WARNING, D_WARNING_SURFACE),
+                "error": (D_DANGER_TEXT, D_DANGER_SURFACE)}.get(level, (D_MUTED, D_SURFACE_2))
+
+    def _build_run_light(self, outer: tk.Frame) -> None:
+        self._run_light = data_library.run_light(running=False)
+        self._pulse_on = False
+        f = tk.Frame(outer, bg=D_SURFACE_2, highlightthickness=2, highlightbackground=D_MUTED, cursor="hand2")
+        self._d_light = f
+        self._light_dot = tk.Canvas(f, width=28, height=28, bg=D_SURFACE_2, highlightthickness=0, bd=0)
+        self._light_dot_id = self._light_dot.create_oval(2, 2, 26, 26, fill=D_MUTED, outline="")
+        self._light_dot.pack(side="left", padx=(16, 12), pady=8)
+        txt = tk.Frame(f, bg=D_SURFACE_2)
+        txt.pack(side="left", fill="x", expand=True, pady=6)
+        self.run_light_title = tk.StringVar(value=self._run_light.title)
+        self.run_light_detail = tk.StringVar(value=self._run_light.detail)
+        self._light_title = tk.Label(txt, textvariable=self.run_light_title, font=self.LIGHT_FONT, fg=D_MUTED,
+                                     bg=D_SURFACE_2, anchor="w")
+        self._light_title.pack(fill="x")
+        self._light_detail = tk.Label(txt, textvariable=self.run_light_detail, font=F_BODY, fg=D_TEXT,
+                                      bg=D_SURFACE_2, anchor="w", justify="left")
+        self._light_detail.pack(fill="x")
+        self._autowrap(self._light_detail, pad=80)
+        self._light_parts = (f, self._light_dot, txt, self._light_title, self._light_detail)
+        for w in self._light_parts:
+            w.bind("<Button-1>", lambda _e: self._on_light_click())
+        self._paint_run_light()
+        self.after(700, self._pulse_light)
+
+    def _paint_run_light(self) -> None:
+        fg, surface = self._light_colours(self._run_light.level)
+        f, dot, txt, title, detail = self._light_parts
+        for w in (f, dot, txt, title, detail):
+            w.configure(bg=surface)
+        f.configure(highlightbackground=fg)
+        title.configure(fg=fg)
+        detail.configure(fg=D_TEXT)
+        dot.itemconfigure(self._light_dot_id, fill=fg)
+        self.run_light_title.set(self._run_light.title)
+        self.run_light_detail.set(self._run_light.detail)
+
+    def _pulse_light(self) -> None:
+        try:
+            fg, surface = self._light_colours(self._run_light.level)
+            if self._run_light.level == "running":
+                self._pulse_on = not self._pulse_on
+                self._light_dot.itemconfigure(self._light_dot_id, fill=surface if self._pulse_on else fg,
+                                              outline=fg, width=3)
+            else:
+                self._light_dot.itemconfigure(self._light_dot_id, fill=fg, outline="", width=0)
+            self.after(700, self._pulse_light)
+        except tk.TclError:
+            pass
+
+    def _on_light_click(self) -> None:
+        action = self._run_light.action
+        if action == "needs_review":
+            self._open_needs_review()
+        elif action == "log":
+            log = self._watch_dir() / "watch_events.log"
+            open_path(log if log.is_file() else self._watch_dir())
+
+    def _review_entries(self, data: dict | None = None) -> list[str]:
+        """Everything that needs a look: files in the needs-review folder + failed jobs from earlier runs.
+
+        Failures from the run that is going now are not listed (and never shown as a fault) until it ends.
+        """
+        data = data if data is not None else (getattr(self, "_last_status", None) or {})
+        running = bool(data.get("running"))
+        try:
+            failed = failed_jobs.split_missing(self._failed_jobs())[0]
+        except Exception:  # noqa: BLE001
+            failed = []
+        start = data_library.utc_iso_to_local(data.get("started_at")) if running else ""
+        prev, _cur = data_library.split_previous_failures(failed, start)
+        self._review_failed = prev
+        rows = [f"Failed  \u2022 {Path(j['path']).name}" for j in prev]
+        rows += [f"Review  \u2022 {p.name}" for p in data_library.review_items(self._needs_review_dir())]
+        return rows
+
+    def _build_review_card(self, outer: tk.Frame) -> None:
+        self._review_failed: list[dict] = []
+        self._d_review, rf = self._dcard(outer)
+        rf.pack_configure(pady=8)
+        head = tk.Frame(rf, bg=D_SURFACE)
+        head.pack(fill="x")
+        self.review_count_var = tk.StringVar(value="Needs review (0)")
+        self._dlabel(head, textvariable=self.review_count_var, font=F_SECTION, fg=D_WARNING).pack(side="left")
+        link = tk.Label(head, text="Open needs-review folder", font=F_BODY + ("underline",), fg=D_ACCENT,
+                        bg=D_SURFACE, cursor="hand2")
+        link.pack(side="right")
+        link.bind("<Button-1>", lambda _e: self._open_needs_review())
+        self._review_link = link
+        ttk.Button(head, text="Re-run failed", style="Dash.Small.TButton",
+                   command=self._rerun_needs_review).pack(side="right", padx=(0, 12))
+        self._review_list = tk.Listbox(rf, height=4, bg=D_INPUT, fg=D_TEXT, selectbackground=D_NAV_SEL,
+                                       selectforeground=D_ACCENT, highlightthickness=1, highlightbackground=D_BORDER,
+                                       relief="flat", font=F_VALUE, activestyle="none")
+        # the list only appears when something needs review (keeps the dashboard short)
+
+    def _refresh_review_card(self, data: dict) -> int:
+        rows = self._review_entries(data)
+        self.review_count_var.set(f"Needs review ({len(rows)})" if rows else "Needs review (0): nothing to look at")
+        lb = self._review_list
+        if list(lb.get(0, tk.END)) != rows:
+            lb.delete(0, tk.END)
+            for r in rows:
+                lb.insert(tk.END, r)
+        if rows:
+            if not lb.winfo_ismapped():
+                lb.pack(fill="x", pady=(6, 0))
+            lb.configure(height=min(6, max(2, len(rows))))
+        else:
+            lb.pack_forget()
+        return len(rows)
+
+    def _rerun_needs_review(self) -> None:
+        """Failed jobs go through the existing re-run-failed logic; needs-review files get the audio-mode picker."""
+        if self._review_failed:
+            self._request_rerun(list(self._review_failed))
+        elif data_library.review_items(self._needs_review_dir()):
+            self._rerun_from_review_dialog()
+        else:
+            self._rerun_failed()
+
+    def _update_run_light(self, data: dict, *, running: bool, stale: bool, worker_gone: bool,
+                          active_jobs: list, queue_count: int, error: str) -> None:
+        self._last_status = data
+        review = self._refresh_review_card(data) if hasattr(self, "_review_list") else 0
+        busy = bool(running and active_jobs)
+        start = data_library.utc_iso_to_local(data.get("started_at"))
+        done = data_library.files_finished_since(self._watch_dir() / "watch_events.log", start) if busy else 0
+        total = done + max(queue_count, len(active_jobs), 1) if busy else 0
+        current = str(active_jobs[-1].get("path") or "") if active_jobs else str(data.get("current_file") or "")
+        self._run_light = data_library.run_light(
+            running=running, stale=stale, worker_gone=worker_gone, busy=busy, current_file=current,
+            done=done, total=total, review_count=0 if running else review, error=error)
+        if hasattr(self, "_light_parts"):
+            self._paint_run_light()
+
+    def _toggle_details(self) -> None:
+        self._details_open = not self._details_open
+        self._render_details()
+        try:
+            save_settings(ROOT, {"dashboard_details_open": self._details_open})
+            self._settings["dashboard_details_open"] = self._details_open
+        except OSError:
+            pass
+
+    def _render_details(self) -> None:
+        self._details_arrow.configure(text="\u25be" if self._details_open else "\u25b8")
+        self._details_hint.configure(text="click to hide" if self._details_open else "click to show")
+        if self._details_open:
+            self._details_body.pack(fill="both", expand=True, padx=12, pady=12)
+        else:
+            self._details_body.pack_forget()
 
     def _rerun_from_review_dialog(self) -> None:
         """Pick files in needs-review, choose an audio mode, and put them back in the watch folder."""
@@ -4101,7 +4261,7 @@ class ControlPanel(tk.Tk):
             self.detail_var.set(detail)
             self.node_status_var.set("SYSTEM: RUNNING")
             self.queue_health_var.set(
-                "FAULT"
+                "CHECK LOG"
                 if err or stalled or status_processing_but_no_live_jobs or over_concurrency or (status == "processing" and worker_pid and not worker_alive)
                 else "ACTIVE"
             )
@@ -4177,7 +4337,12 @@ class ControlPanel(tk.Tk):
         self.power_btn.state(["!disabled"] if (can_start or can_stop) else ["disabled"])
 
         recent_failure = last_event.startswith("failed:") or last_event.startswith("stalled:")
-        show_banner = stale_running or stalled or (bool(err) and (running_flag or recent_failure))
+        # v1.4.1: the big run light carries this now; the old banner is never shown (no conflicting messages).
+        self._update_run_light(data, running=bool(running_flag and alive), stale=bool(stale_running),
+                               worker_gone=bool(status == "processing" and worker_pid and not worker_alive and not active_jobs),
+                               active_jobs=active_jobs, queue_count=queue_count_live,
+                               error=friendly_err if (err and recent_failure and not running_flag) else "")
+        show_banner = False
         msg_parts: list[str] = []
         if stale_running:
             msg_parts.append(

@@ -65,6 +65,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "auto_needs_review": True,
     "keep_watching_after_run": False,
     "music_vocal_separation": True,
+    "dashboard_details_open": False,  # v1.4.1: Details box on the dashboard remembers open/closed
 }
 
 

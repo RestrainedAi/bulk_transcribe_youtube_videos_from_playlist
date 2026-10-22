@@ -379,3 +379,89 @@ def run_migration(repo_root: Path, plan: MigrationPlan, *, dry_run: bool = True,
             "Settings now point to the library. Originals untouched; delete them yourself when happy.")
         _ = load_settings(Path(repo_root))
     return stats
+
+
+# --------------------------------------------------------------------------- v1.4.1 run light
+
+@dataclass(frozen=True)
+class RunLight:
+    """The one big status light at the top of the dashboard (single source of truth)."""
+    level: str   # running | idle | review | error
+    title: str   # big words, readable from across the room
+    detail: str  # one plain sentence underneath
+    action: str = ""  # "" | "needs_review" | "log" | "start"
+
+
+def run_light(*, running: bool, stale: bool = False, worker_gone: bool = False, busy: bool = False,
+              current_file: str = "", done: int = 0, total: int = 0, review_count: int = 0,
+              error: str = "") -> RunLight:
+    """Decide the status light from one snapshot.
+
+    Old failures never turn the light red while a run is going: they only count toward
+    'needs review' once the run is over. Red is reserved for "the watcher itself stopped".
+    """
+    if stale:
+        return RunLight("error", "STOPPED: the watcher quit unexpectedly",
+                        "It stopped without finishing. Click Start watcher to carry on; "
+                        "if it happens again, click here to open the log.", "log")
+    if running and worker_gone:
+        return RunLight("error", "STOPPED: the transcriber crashed",
+                        "The watcher is on but the transcriber process is gone. Stop and start the watcher; "
+                        "click here to open the log.", "log")
+    if running and busy:
+        name = Path(str(current_file)).name if current_file else "a file"
+        count = f"  ({min(done + 1, total)} of {total})" if total else ""
+        return RunLight("running", f"RUNNING{count}", f"Transcribing {name}")
+    if not running and error:
+        return RunLight("error", "STOPPED: an error ended the run",
+                        f"{error} Fix that, then click Start watcher. Click here to open the log.", "log")
+    if review_count:
+        n = review_count
+        return RunLight("review", f"DONE: {n} file{'s' if n != 1 else ''} need{'s' if n == 1 else ''} review",
+                        "See the Needs review list below: re-run them or open the folder.", "needs_review")
+    if running:
+        return RunLight("idle", "IDLE: watching for new files", "Nothing to do right now. Drop files in the watch folder.")
+    return RunLight("idle", "IDLE: watcher is off", "All done. Click Start watcher to process new files.", "start")
+
+
+def split_previous_failures(jobs: list[dict], run_started_local: str) -> tuple[list[dict], list[dict]]:
+    """(failures from earlier runs, failures from this run). Log 'at' and the start are 'YYYY-MM-DD HH:MM:SS' local."""
+    if not run_started_local:
+        return list(jobs), []
+    prev, cur = [], []
+    for j in jobs:
+        (cur if str(j.get("at", "")) >= run_started_local else prev).append(j)
+    return prev, cur
+
+
+def utc_iso_to_local(iso_utc: object) -> str:
+    """'2026-10-22T05:00:00Z' -> local 'YYYY-MM-DD HH:MM:SS' ('' if unreadable)."""
+    from datetime import datetime, timezone
+    s = str(iso_utc or "").strip()
+    if not s:
+        return ""
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def files_finished_since(log_path: str | os.PathLike, run_started_local: str) -> int:
+    """How many files finished (completed, failed, stalled or needs-review) in watch_events.log since the run began."""
+    import re
+    if not run_started_local:
+        return 0
+    pat = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \[watch\] (completed|failed|stalled|needs_review): ")
+    n = 0
+    try:
+        with open(log_path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                m = pat.match(line)
+                if m and m.group(1) >= run_started_local:
+                    n += 1
+    except OSError:
+        return 0
+    return n

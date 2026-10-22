@@ -52,6 +52,7 @@ CATALOG: dict[str, tuple[str, str, str]] = {
     "auto_needs_review": ("Watcher", "Move no-speech files to needs-review", "Content failures go to needs-review with a reason file."),
     "keep_watching_after_run": ("Watcher", "Keep watching after run", "Off = the watcher turns off when the queue is empty after a run."),
     "music_vocal_separation": ("Transcription", "Separate vocals for Music/lyrics", "Uses audio-separator if installed; else the full mix."),
+    "dashboard_details_open": ("Watcher", "Details box open", "Remembers whether the Details box on the dashboard is open."),
     "lm_studio_base_url": ("Handoff", "LM Studio URL", ""),
     "lm_studio_model": ("Handoff", "LM Studio model", ""),
     "default_post_transcript_destination": ("Handoff", "Default handoff destination", ""),
