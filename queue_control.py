@@ -4,6 +4,7 @@ The panel writes <watch_dir>/queue_control.json; the watcher reads it before sta
   paused: bool       -> no new file starts (the running one finishes)
   order:  [paths]    -> preferred order; files not listed keep arrival order after the listed ones
   skip:   [paths]    -> remove these from the queue (the files stay where they are)
+  rerun:  [paths]    -> failed files to queue again (v1.3.2 "Re-run failed")
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ def load(watch_dir: str) -> dict:
         "paused": bool(data.get("paused", False)),
         "order": [str(p) for p in data.get("order") or [] if p],
         "skip": [str(p) for p in data.get("skip") or [] if p],
+        "rerun": [str(p) for p in data.get("rerun") or [] if p],
     }
 
 
@@ -44,7 +46,7 @@ def save(watch_dir: str, data: dict) -> None:
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump({"paused": bool(data.get("paused")), "order": list(data.get("order") or []),
-                       "skip": list(data.get("skip") or [])}, f, indent=1)
+                       "skip": list(data.get("skip") or []), "rerun": list(data.get("rerun") or [])}, f, indent=1)
         os.replace(tmp, path)
 
 
@@ -81,6 +83,31 @@ def request_skip(watch_dir: str, path: str) -> None:
     if _norm(path) not in {_norm(p) for p in data["skip"]}:
         data["skip"].append(path)
     save(watch_dir, data)
+
+
+def request_rerun(watch_dir: str, paths: list[str]) -> int:
+    """Ask the watcher to queue these failed files again. Returns how many were newly requested."""
+    data = load(watch_dir)
+    have = {_norm(p) for p in data["rerun"]}
+    added = 0
+    for p in paths:
+        if _norm(p) not in have:
+            data["rerun"].append(p)
+            have.add(_norm(p))
+            added += 1
+    save(watch_dir, data)
+    return added
+
+
+def take_reruns(watch_dir: str) -> list[str]:
+    """Return and clear pending re-run requests."""
+    data = load(watch_dir)
+    if not data["rerun"]:
+        return []
+    reruns = list(data["rerun"])
+    data["rerun"] = []
+    save(watch_dir, data)
+    return reruns
 
 
 def forget(watch_dir: str, path: str) -> None:

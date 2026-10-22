@@ -396,6 +396,18 @@ class StatusTracker:
             self._write_status()
         self._append_log(f"[watch] failed: {src_path} :: {error}")
 
+    def mark_requeued(self, src_path: str) -> None:
+        """A failed job was re-run from the panel: take it off the FAILED counter and clear its error."""
+        with self._lock:
+            self.state["failed_count"] = max(0, int(self.state.get("failed_count") or 0) - 1)
+            self.state["processed_count"] = max(0, int(self.state.get("processed_count") or 0) - 1)
+            if self.state["failed_count"] == 0:
+                self.state["last_error"] = None
+                self.state["stalled"] = False
+            self.state["last_event"] = f"requeued:{src_path}"
+            self._write_status()
+        self._append_log(f"[watch] requeued: {src_path}")
+
     def mark_stalled(self, src_path: str, error: str) -> None:
         with self._lock:
             self.state["status"] = "idle"
@@ -1136,6 +1148,25 @@ class VideoHandler(FileSystemEventHandler):
                 self._active.discard(abs_path)
                 self._publish_queue_locked()
 
+    def process_reruns(self) -> tuple[int, int]:
+        """Queue failed files the panel asked to re-run. Returns (requeued, skipped_missing)."""
+        import queue_control
+        requeued = missing = 0
+        for path in queue_control.take_reruns(self.watch_dir):
+            abs_path = os.path.abspath(path)
+            if not os.path.isfile(abs_path):
+                missing += 1
+                self.status._append_log(f"[watch] rerun skipped (source missing): {abs_path}")
+                continue
+            with self._lock:
+                busy = abs_path in self._queued or abs_path in self._active
+            if busy:
+                continue
+            self.status.mark_requeued(abs_path)
+            self._schedule(abs_path)
+            requeued += 1
+        return requeued, missing
+
     def on_created(self, event):  # noqa: ANN001
         if event.is_directory:
             return
@@ -1340,6 +1371,10 @@ def main() -> None:
         )
         while True:
             reconcile_orphaned_jobs(watch_dir, output_dirs, status, stall_timeout_seconds)
+            try:
+                handler.process_reruns()
+            except Exception as exc:
+                print(f"[watch] Re-run request failed: {exc}")
             if time.monotonic() - last_health > 30:
                 last_health = time.monotonic()
                 try:

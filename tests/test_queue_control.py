@@ -1,4 +1,4 @@
-import os, sys, time
+﻿import os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import queue_control as qc
 import watch_and_transcribe as wt
@@ -26,7 +26,7 @@ def test_pause_and_skip(tmp_path):
 
 def test_corrupt_control_file(tmp_path):
     (tmp_path / qc.CONTROL_NAME).write_text("{oops")
-    assert qc.load(str(tmp_path)) == {"paused": False, "order": [], "skip": []}
+    assert qc.load(str(tmp_path)) == {"paused": False, "order": [], "skip": [], "rerun": []}
 
 
 def test_progress_and_eta():

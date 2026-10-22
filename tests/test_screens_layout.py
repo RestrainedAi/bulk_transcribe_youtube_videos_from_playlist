@@ -1,4 +1,4 @@
-"""1.3.0: every page matches the redesign and fits at 1000x1024 and 1280x720 with nothing clipped."""
+﻿"""1.3.0: every page matches the redesign and fits at 1000x1024 and 1280x720 with nothing clipped."""
 from __future__ import annotations
 
 import os
@@ -195,4 +195,4 @@ def test_search_buttons_disabled_without_selection() -> None:
 
 def test_version_label_reads_app_version() -> None:
     import app_version
-    assert app_version.APP_VERSION == "1.3.1"
+    assert app_version.APP_VERSION == "1.3.2"

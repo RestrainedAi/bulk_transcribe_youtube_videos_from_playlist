@@ -1,4 +1,4 @@
-"""Desktop control panel for the transcription folder watcher (dark dashboard shell)."""
+﻿"""Desktop control panel for the transcription folder watcher (dark dashboard shell)."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ import coverage_check
 import aeonimus_handoff
 from app_version import APP_NAME, APP_VERSION
 import queue_control
+import failed_jobs
 import transcript_review
 import support_tools
 from output_paths import (
@@ -58,7 +59,7 @@ START_SCRIPT = ROOT / "start_watcher.ps1"
 STOP_SCRIPT = ROOT / "stop_watcher.ps1"
 SINGLE_INSTANCE_PORT = 45219
 
-# Kinetic Console palette — matched to .archive/assets/kinetic_console_reference/code_DesignGuide.html
+# Kinetic Console palette â€” matched to .archive/assets/kinetic_console_reference/code_DesignGuide.html
 # Colours come from the selected skin (themes.py); Harbor is the default.
 _C = themes.panel_constants(load_settings(ROOT).get("theme"))
 PRIMARY_HOVER = _C["PRIMARY_HOVER"]
@@ -183,7 +184,7 @@ def open_path(path: Path) -> None:
 def format_watcher_error(error: object) -> str:
     text = str(error or "").strip()
     if not text:
-        return "—"
+        return "â€”"
     lowered = text.lower()
     if "transcription_returned_no_segments" in lowered:
         return "Whisper returned no transcript segments for this file."
@@ -200,8 +201,8 @@ def format_watcher_error(error: object) -> str:
 
 def age_label(iso_utc: object) -> str:
     text = str(iso_utc or "").strip()
-    if not text or text == "—":
-        return "—"
+    if not text or text == "â€”":
+        return "â€”"
     try:
         dt = datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ")
     except ValueError:
@@ -321,19 +322,19 @@ class ControlPanel(tk.Tk):
         self._current_nav = "dashboard"
         self._nav_buttons: dict[str, tk.Label] = {}
 
-        self.summary_var = tk.StringVar(value="Starting…")
-        self.phase_var = tk.StringVar(value="—")
-        self.health_var = tk.StringVar(value="—")
+        self.summary_var = tk.StringVar(value="Startingâ€¦")
+        self.phase_var = tk.StringVar(value="â€”")
+        self.health_var = tk.StringVar(value="â€”")
         self.detail_var = tk.StringVar(value="")
-        self.node_status_var = tk.StringVar(value="SYSTEM: —")
-        self.file_var = tk.StringVar(value="—")
-        self.heartbeat_var = tk.StringVar(value="—")
-        self.progress_var = tk.StringVar(value="—")
-        self.segment_var = tk.StringVar(value="—")
-        self.pid_var = tk.StringVar(value="—")
-        self.worker_pid_var = tk.StringVar(value="—")
-        self.error_var = tk.StringVar(value="—")
-        self.active_jobs_var = tk.StringVar(value="—")
+        self.node_status_var = tk.StringVar(value="SYSTEM: â€”")
+        self.file_var = tk.StringVar(value="â€”")
+        self.heartbeat_var = tk.StringVar(value="â€”")
+        self.progress_var = tk.StringVar(value="â€”")
+        self.segment_var = tk.StringVar(value="â€”")
+        self.pid_var = tk.StringVar(value="â€”")
+        self.worker_pid_var = tk.StringVar(value="â€”")
+        self.error_var = tk.StringVar(value="â€”")
+        self.active_jobs_var = tk.StringVar(value="â€”")
         self.queue_var = tk.IntVar(value=0)
         self.completed_var = tk.IntVar(value=0)
         self.failed_var = tk.IntVar(value=0)
@@ -945,6 +946,7 @@ class ControlPanel(tk.Tk):
         self._d_qbtns2 = [
             ttk.Button(qf, text="Reconcile finished job", style="Dash.Small.TButton", command=self._reconcile_finished_job),
             ttk.Button(qf, text="Clear last error", style="Dash.Small.TButton", command=self._clear_last_error),
+            ttk.Button(qf, text="Re-run failed", style="Dash.Small.TButton", command=self._rerun_failed),
         ]
         self.quick_actions_frame = self._d_quick
 
@@ -1434,6 +1436,11 @@ class ControlPanel(tk.Tk):
             side="left", padx=(8, 0))
         ttk.Button(acts, text="Skip selected", style="Dash.SmallSecondary.TButton", command=self._queue_skip).pack(
             side="left", padx=(8, 0))
+        self.rerun_failed_text = tk.StringVar(value="Re-run failed")
+        ttk.Button(acts, textvariable=self.rerun_failed_text, style="Dash.SmallSecondary.TButton",
+                   command=self._rerun_failed).pack(side="left", padx=(8, 0))
+        ttk.Button(acts, text="Re-run selected", style="Dash.SmallSecondary.TButton",
+                   command=self._rerun_selected).pack(side="left", padx=(8, 0))
         self._wrap_label(self._dlabel(acts, "Pause queue = finish the current file, start no new ones (watcher stays on).",
                                       fg=D_MUTED)).pack(side="left", fill="x", expand=True, padx=(8, 0))
         self._queue_paused = False
@@ -3585,7 +3592,7 @@ class ControlPanel(tk.Tk):
         ttk.Radiobutton(f, text="NotebookLM (clipboard + open web)", variable=dest, value="notebooklm").pack(
             anchor="w"
         )
-        ttk.Radiobutton(f, text="LLM (instant — clipboard + provider site)", variable=dest, value="llm").pack(
+        ttk.Radiobutton(f, text="LLM (instant â€” clipboard + provider site)", variable=dest, value="llm").pack(
             anchor="w"
         )
         ttk.Label(
@@ -3656,7 +3663,7 @@ class ControlPanel(tk.Tk):
             ok, out = handoff_try_llm_api(provider, bundle, self._settings)
             if ok and out:
                 write_api_handoff_artifact(self._watch_dir(), title, out)
-                preview = out if len(out) <= 2000 else out[:2000] + "\n…"
+                preview = out if len(out) <= 2000 else out[:2000] + "\nâ€¦"
                 messagebox.showinfo(
                     "LLM API",
                     "Summary written to staged_for_notebooklm/last_api_summary.txt\n\n" + preview,
@@ -3763,6 +3770,50 @@ class ControlPanel(tk.Tk):
         if messagebox.askyesno("Skip file", f"Remove from the queue (the file stays in the watch folder)?\n\n{Path(path).name}"):
             queue_control.request_skip(self._watch_dir(), path)
 
+    def _failed_jobs(self) -> list[dict]:
+        queued = {os.path.normcase(os.path.abspath(p)) for p in (getattr(self, "_queue_order", None) or [])}
+        req = {os.path.normcase(os.path.abspath(p)) for p in queue_control.load(self._watch_dir())["rerun"]}
+        return [j for j in failed_jobs.failed_from_log(self._watch_dir() / "watch_events.log")
+                if os.path.normcase(os.path.abspath(j["path"])) not in queued | req]
+
+    def _request_rerun(self, jobs: list[dict]) -> None:
+        present, missing = failed_jobs.split_missing(jobs)
+        if not present:
+            messagebox.showinfo("Re-run failed", "Nothing to re-run." + (
+                f"\n\n{len(missing)} failed job(s) skipped: source file missing." if missing else ""))
+            return
+        if not messagebox.askyesno("Re-run failed", failed_jobs.confirm_text(len(present), len(missing))):
+            return
+        queue_control.request_rerun(self._watch_dir(), [j["path"] for j in present])
+        try:
+            self.failed_var.set(max(0, int(self.failed_var.get()) - len(present)))
+        except (tk.TclError, ValueError):
+            pass
+        note = f"{len(present)} failed job(s) sent back to the queue."
+        if missing:
+            note += f" {len(missing)} skipped: source file missing."
+        if not self._watcher_running_hint():
+            note += " The watcher is off; they start when you turn it on."
+        messagebox.showinfo("Re-run failed", note)
+        self.refresh_once()
+
+    def _watcher_running_hint(self) -> bool:
+        try:
+            return bool(json.loads(self._status_path().read_text(encoding="utf-8")).get("running"))
+        except (OSError, ValueError):
+            return False
+
+    def _rerun_failed(self) -> None:
+        self._request_rerun(self._failed_jobs())
+
+    def _rerun_selected(self) -> None:
+        path = self._queue_selected()
+        jobs = [j for j in self._failed_jobs() if path and os.path.normcase(j["path"]) == os.path.normcase(path)]
+        if not jobs:
+            messagebox.showinfo("Re-run selected", "Select a failed file in the list first.")
+            return
+        self._request_rerun(jobs)
+
     def _queue_toggle_pause(self) -> None:
         self._queue_paused = not self._queue_paused
         queue_control.set_paused(self._watch_dir(), self._queue_paused)
@@ -3778,8 +3829,8 @@ class ControlPanel(tk.Tk):
         processed_count = int(data.get("processed_count") or 0)
         recent_rate = self._recent_processing_rate()
         self.queue_meta_var.set(
-            f"Queue depth: {queue_count} · "
-            f"Max concurrent: {int(data.get('max_concurrent_jobs') or 1)} · "
+            f"Queue depth: {queue_count} Â· "
+            f"Max concurrent: {int(data.get('max_concurrent_jobs') or 1)} Â· "
             f"Active jobs: {active_count}"
         )
         self.queue_active_var.set(str(active_count))
@@ -3818,6 +3869,18 @@ class ControlPanel(tk.Tk):
             if not tree.exists(q):
                 tree.insert("", tk.END, iid=q, values=(Path(q).name, state, "-", "-", "-"),
                             tags=("st_muted",) if self._queue_paused else ("st_accent",))
+        try:
+            failed = self._failed_jobs()
+        except Exception:
+            failed = []
+        for fj in failed:
+            fp = fj["path"]
+            if not tree.exists(fp):
+                gone = not os.path.isfile(fp)
+                tree.insert("", tk.END, iid=fp, values=(Path(fp).name, "missing" if gone else "failed",
+                            "-", (fj.get("error") or "")[:40], fj.get("at", "")[11:16]), tags=("st_danger",))
+        if hasattr(self, "rerun_failed_text"):
+            self.rerun_failed_text.set(f"Re-run failed ({len(failed)})" if failed else "Re-run failed")
         if keep and tree.exists(keep):
             tree.selection_set(keep)
         if first:
@@ -3869,35 +3932,35 @@ class ControlPanel(tk.Tk):
         status_processing_but_no_live_jobs = status == "processing" and not active_jobs
 
         if stale_running:
-            self.summary_var.set("OFF (stale status — PID not running)")
+            self.summary_var.set("OFF (stale status â€” PID not running)")
             self.phase_var.set("off")
             self.detail_var.set("Start the watcher or refresh after a clean stop.")
             self.node_status_var.set("SYSTEM: UNKNOWN")
             self.queue_health_var.set("STALE")
         elif not running_flag or status == "stopped":
-            self.summary_var.set("OFF — watcher stopped")
+            self.summary_var.set("OFF â€” watcher stopped")
             self.phase_var.set(str(data.get("phase") or "off"))
             self.health_var.set(str(data.get("health") or "-"))
             self.detail_var.set("Use Start on Dashboard or Queue to launch.")
             self.node_status_var.set("SYSTEM: STOPPED")
             self.queue_health_var.set("STANDBY")
         else:
-            self.summary_var.set("ON — watcher running")
+            self.summary_var.set("ON â€” watcher running")
             self.phase_var.set("transcribing" if active_jobs else phase)
             self.health_var.set(str(data.get("health") or "-"))
             detail = f"Status: {status}"
             if stalled:
-                detail += " · stalled flag set"
+                detail += " Â· stalled flag set"
             if status_processing_but_no_live_jobs:
-                detail += " · no live worker detected"
+                detail += " Â· no live worker detected"
             elif status == "processing" and worker_pid and not worker_alive:
-                detail += " · worker process is gone"
+                detail += " Â· worker process is gone"
             if stale_jobs:
-                detail += f" · dropped {stale_jobs} stale job entr{'y' if stale_jobs == 1 else 'ies'} from view"
+                detail += f" Â· dropped {stale_jobs} stale job entr{'y' if stale_jobs == 1 else 'ies'} from view"
             if over_concurrency:
-                detail += f" · concurrency mismatch ({len(active_jobs)} running, limit {max_jobs})"
+                detail += f" Â· concurrency mismatch ({len(active_jobs)} running, limit {max_jobs})"
             elif max_jobs > 1:
-                detail += f" · concurrency={max_jobs} (GPU contention risk — open Monitor)"
+                detail += f" Â· concurrency={max_jobs} (GPU contention risk â€” open Monitor)"
             self.detail_var.set(detail)
             self.node_status_var.set("SYSTEM: RUNNING")
             self.queue_health_var.set(
@@ -3910,27 +3973,27 @@ class ControlPanel(tk.Tk):
         prog_at = data.get("last_progress_at")
         if stall_sec and prog_at and status == "processing":
             self.detail_var.set(
-                f"{self.detail_var.get()} · stall timeout {stall_sec}s (no progress kills worker)"
+                f"{self.detail_var.get()} Â· stall timeout {stall_sec}s (no progress kills worker)"
             )
 
         stopped_view = stale_running or (not running_flag) or status == "stopped"
         if stopped_view:
-            self.file_var.set("—")
+            self.file_var.set("â€”")
             self.heartbeat_var.set("stopped")
-            self.progress_var.set("—")
-            self.segment_var.set("—")
-            self.pid_var.set("—")
-            self.worker_pid_var.set("—")
+            self.progress_var.set("â€”")
+            self.segment_var.set("â€”")
+            self.pid_var.set("â€”")
+            self.worker_pid_var.set("â€”")
         else:
             current_file = str(data.get("current_file") or "").strip()
             if active_jobs:
-                current_file = str(active_jobs[-1].get("path") or current_file or "—")
-            self.file_var.set(current_file or "—")
-            self.heartbeat_var.set(f"{str(data.get('last_heartbeat') or '—')}  ({heartbeat_age})")
-            self.progress_var.set(f"{str(data.get('last_progress_at') or '—')}  ({progress_age})")
+                current_file = str(active_jobs[-1].get("path") or current_file or "â€”")
+            self.file_var.set(current_file or "â€”")
+            self.heartbeat_var.set(f"{str(data.get('last_heartbeat') or 'â€”')}  ({heartbeat_age})")
+            self.progress_var.set(f"{str(data.get('last_progress_at') or 'â€”')}  ({progress_age})")
             self.segment_var.set(f"{float(data.get('last_segment_end', 0.0) or 0.0):.2f}s")
-            self.pid_var.set(str(data.get("pid") or "—"))
-            worker_label = str(data.get("last_worker_pid") or "—")
+            self.pid_var.set(str(data.get("pid") or "â€”"))
+            worker_label = str(data.get("last_worker_pid") or "â€”")
             if worker_pid:
                 worker_label += "  (alive)" if worker_alive else "  (not running)"
             self.worker_pid_var.set(worker_label)
@@ -3944,7 +4007,7 @@ class ControlPanel(tk.Tk):
                 )
             self.active_jobs_var.set("; ".join(parts))
         else:
-            self.active_jobs_var.set("—")
+            self.active_jobs_var.set("â€”")
 
         queue_count = queue_count_live
         completed_count = int(data.get("completed_count", 0) or 0)
@@ -3981,7 +4044,7 @@ class ControlPanel(tk.Tk):
         msg_parts: list[str] = []
         if stale_running:
             msg_parts.append(
-                "Status file says running but the process is gone — use Start or refresh after a clean stop."
+                "Status file says running but the process is gone â€” use Start or refresh after a clean stop."
             )
         if status == "processing" and worker_pid and not worker_alive:
             msg_parts.append("Watcher is alive but the transcription worker process is no longer running.")
@@ -3992,7 +4055,7 @@ class ControlPanel(tk.Tk):
         if show_banner:
             bg = ROW_ERROR if (err or stalled) else ROW_WARN
             self.banner_frame.configure(bg=bg)
-            self.banner_label.configure(text=" · ".join(msg_parts), fg="#fff", bg=bg)
+            self.banner_label.configure(text=" Â· ".join(msg_parts), fg="#fff", bg=bg)
             if not self.banner_frame.winfo_ismapped():
                 first = self._dash_outer.pack_slaves()
                 if first:
@@ -4004,7 +4067,7 @@ class ControlPanel(tk.Tk):
 
         prof = str(data.get("log_profile", "standard"))
         self.monitor_hint_var.set(
-            f"Log profile: {prof} — JSONL samples in {self._watch_dir() / 'watch_resource.jsonl'} while jobs run."
+            f"Log profile: {prof} â€” JSONL samples in {self._watch_dir() / 'watch_resource.jsonl'} while jobs run."
         )
         if self.auto_refresh_var.get():
             self.log_status_var.set("Live updates on")
@@ -4013,10 +4076,10 @@ class ControlPanel(tk.Tk):
         else:
             self.log_status_var.set("Paused outside logs")
         self.logs_hint_var.set(
-            f"Streaming tail from {self._watch_dir() / 'watch_events.log'} — newest lines are shown first."
+            f"Streaming tail from {self._watch_dir() / 'watch_events.log'} â€” newest lines are shown first."
         )
         self.live_transcribe_hint_var.set(
-            f"Streaming tail from {self._watch_dir() / 'whisper_live.log'} — newest transcript segments are shown first."
+            f"Streaming tail from {self._watch_dir() / 'whisper_live.log'} â€” newest transcript segments are shown first."
         )
         provider = str(self._settings.get("default_llm_provider", "notebooklm")).strip() or "notebooklm"
         self.handoff_destination_var.set(provider.replace("_", " ").title())
@@ -4162,7 +4225,7 @@ class ControlPanel(tk.Tk):
         mem_used = snap.get("mem_used_mb")
         self.monitor_cpu_var.set(f"CPU {cpu:.0f}%")
         if mem_used is not None:
-            self.monitor_mem_var.set(f"MEM {mem:.0f}% · {float(mem_used) / 1024:.1f} GB")
+            self.monitor_mem_var.set(f"MEM {mem:.0f}% Â· {float(mem_used) / 1024:.1f} GB")
         else:
             self.monitor_mem_var.set(f"MEM {mem:.0f}%")
 
@@ -4173,7 +4236,7 @@ class ControlPanel(tk.Tk):
         if gpu_util is not None:
             if gpu_used is not None and gpu_total:
                 self.monitor_gpu_var.set(
-                    f"GPU {float(gpu_util):.0f}% · {float(gpu_used) / 1024:.1f}/{float(gpu_total) / 1024:.1f} GB"
+                    f"GPU {float(gpu_util):.0f}% Â· {float(gpu_used) / 1024:.1f}/{float(gpu_total) / 1024:.1f} GB"
                 )
             else:
                 self.monitor_gpu_var.set(f"GPU {float(gpu_util):.0f}%")
@@ -4181,7 +4244,7 @@ class ControlPanel(tk.Tk):
             self.monitor_gpu_var.set("GPU unavailable")
 
         self.monitor_disk_var.set(
-            f"{snap.get('ts', 'live')} · threads {snap.get('python_threads', 'n/a')} · log profile {self._settings.get('log_profile', 'standard')}"
+            f"{snap.get('ts', 'live')} Â· threads {snap.get('python_threads', 'n/a')} Â· log profile {self._settings.get('log_profile', 'standard')}"
         )
 
     @staticmethod
