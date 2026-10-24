@@ -190,7 +190,8 @@ def transcribe_kwargs_for_profile(profile: str, vad_filter: bool, language: str 
         profile = "robust"  # 'auto' starts with the speech settings
     kwargs.update(
         vad_filter=True,
-        vad_parameters={"min_silence_duration_ms": 500, "speech_pad_ms": 300},
+        # v1.4.2: more sensitive VAD so quiet / overlapping talk is not cut out.
+        vad_parameters={"threshold": 0.3, "min_silence_duration_ms": 1000, "speech_pad_ms": 400},
         condition_on_previous_text=False,
         temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
         compression_ratio_threshold=2.4,

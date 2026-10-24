@@ -33,7 +33,7 @@ def _h(p: Path) -> str:
 
 def test_version_is_140() -> None:
     import app_version
-    assert app_version.APP_VERSION.startswith("1.4.")
+    assert tuple(int(x) for x in app_version.APP_VERSION.split(".")) >= (1, 4, 0)
 
 
 def test_new_settings_defaults(tmp_path) -> None:

@@ -92,6 +92,23 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("out!", out[1]["text"])
         self.assertIn("whisper_text", out[1])
 
+    def test_alt_engine_disagreement_keeps_whisper_and_flags(self):
+        with patch.dict(os.environ, {"ASR_ENGINE": "granite-2b", "ASR_CROSSCHECK": ""}):
+            out, summary = self._run({}, runner=lambda e, a, s: {"text": "The phone made six thousand connections. Your debt is sent out.", "chunks": []})
+        self.assertEqual(out[0]["engine"], "granite-2b")  # full agreement: alt text allowed
+        self.assertEqual(out[1]["text"], SEGS[1]["text"])  # disagreement: Whisper kept
+        self.assertEqual(out[1]["engine"], "whisper")
+        self.assertIn("debt", out[1]["alt_text"])
+        self.assertIn("kept Whisper's words", out[1]["flags"])
+        self.assertIn("models disagree", out[1]["flags"])
+        self.assertIn("kept Whisper", summary)
+
+    def test_alt_engine_dropped_clause_keeps_whisper(self):
+        with patch.dict(os.environ, {"ASR_ENGINE": "granite-2b", "ASR_CROSSCHECK": ""}):
+            out, _ = self._run({}, runner=lambda e, a, s: {"text": "The phone made connections. Your data is sent out.", "chunks": []})
+        self.assertEqual(out[0]["text"], SEGS[0]["text"])
+        self.assertIn("kept Whisper's words", out[0]["flags"])
+
     def test_crosscheck_keeps_whisper_text(self):
         with patch.dict(os.environ, {"ASR_ENGINE": "", "ASR_CROSSCHECK": "1"}):
             out, summary = self._run({}, runner=lambda e, a, s: {"text": "The phone made six thousand connections. Your debt is sent out.", "chunks": []})

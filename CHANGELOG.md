@@ -2,6 +2,15 @@
 
 All notable changes to the Transcription Workbench.
 
+## 1.4.2 (2026-10-23, test build)
+
+- **Accuracy fix: Whisper's words are kept when the engines disagree.** When a second engine (e.g. granite-2b)
+  is selected, it now only replaces a line it fully agrees with. Any line where it heard something different
+  keeps Whisper's text, stores the other engine's version as `alt_text`, and is flagged
+  ("kept Whisper's words ...") so it shows up for review. Stops wrong-word swaps.
+- **More sensitive voice detection** for the normal speech profile: VAD threshold 0.3, min silence 1000 ms,
+  speech pad 400 ms, so quiet or overlapping talk isn't cut out.
+
 ## 1.4.1 (2026-10-22, test build)
 
 - **Big status light** at the top of the dashboard, readable at a glance: green and pulsing = RUNNING

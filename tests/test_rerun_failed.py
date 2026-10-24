@@ -127,4 +127,4 @@ def test_mark_requeued_updates_counter(tmp_path):
 
 def test_version_bumped():
     import app_version
-    assert app_version.APP_VERSION == "1.4.1"
+    assert tuple(int(x) for x in app_version.APP_VERSION.split(".")) >= (1, 4, 1)

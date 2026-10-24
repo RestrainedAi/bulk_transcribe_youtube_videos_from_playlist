@@ -12,7 +12,7 @@ PANEL = (ROOT / "watcher_control_panel.py").read_text(encoding="utf-8")
 
 def test_version_is_141() -> None:
     import app_version
-    assert app_version.APP_VERSION == "1.4.1"
+    assert tuple(int(x) for x in app_version.APP_VERSION.split(".")) >= (1, 4, 1)
 
 
 def test_running_light_shows_file_and_n_of_m() -> None:

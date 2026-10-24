@@ -238,14 +238,26 @@ def apply_engine_pipeline(audio_path: str, stem: str, segments: list[dict], sett
         replace = engine != "whisper"
         for seg, w, a, n in zip(segments, words, agreement, notes):
             s = dict(seg)
-            if replace and w:
+            # v1.4.2: never swap Whisper's words for the other engine's when they disagree.
+            # The alt engine only replaces a line it fully agrees with (same words, so this just
+            # takes its casing/punctuation); otherwise Whisper's text is kept and the line is flagged.
+            disagree = bool(n) or a < 1.0
+            if replace and w and not disagree:
                 s["whisper_text"] = s["text"]
                 s["text"] = " " + " ".join(w)
-            s["engine"] = alt_engine if replace else "whisper"
+                s["engine"] = alt_engine
+            else:
+                s["engine"] = "whisper"
             s["agreement"] = a
+            if w and (not replace or disagree):
+                s["alt_text"] = " ".join(w)
+                s["alt_engine"] = alt_engine
             if not replace:
                 s["crosscheck_text"] = " ".join(w)
-            s["flags"] = "; ".join(segment_flags(seg, a, n))
+            why = segment_flags(seg, a, n)
+            if replace and disagree and w:
+                why.append(f"kept Whisper's words ({ENGINES[alt_engine][2]} heard something different)")
+            s["flags"] = "; ".join(why)
             out.append(s)
         used = alt_engine if replace else "whisper+voxtral-crosscheck"
     else:
