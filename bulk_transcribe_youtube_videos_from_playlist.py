@@ -133,6 +133,7 @@ max_workers_transcribe = psutil.cpu_count(logical=False)  # Number of physical c
 
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 _SETTINGS = load_settings(Path(REPO_ROOT))
+import speaker_labels  # noqa: E402  (v1.5.0 optional speaker labels)
 OUTPUT_DIRS = ensure_output_dirs(Path(REPO_ROOT), _SETTINGS)
 COMPLETED_AUDIO_DIR = str(OUTPUT_DIRS["completed_audio"])
 COMPLETED_TRANSCRIPTS_DIR = str(OUTPUT_DIRS["completed_transcripts"])
@@ -179,6 +180,10 @@ def resolve_whisper_language(settings: dict | None = None) -> str | None:
     data = settings if isinstance(settings, dict) else _SETTINGS
     raw = str(os.environ.get("WHISPER_LANGUAGE") or data.get("whisper_language") or "auto").strip().lower()
     return None if raw in ("", "auto") else raw
+
+
+def _speaker_labels_on() -> bool:
+    return speaker_labels.enabled(_SETTINGS)
 
 
 def transcribe_kwargs_for_profile(profile: str, vad_filter: bool, language: str | None = "en") -> dict:
@@ -428,6 +433,7 @@ async def compute_transcript_with_whisper_from_audio_func(
     audio_file_size_mb,
     progress_callback=None,
 ):
+    _label_speakers = _speaker_labels_on()
     cuda_toolkit_path = get_cuda_toolkit_path()
     if cuda_toolkit_path:
         add_to_system_path(cuda_toolkit_path)
@@ -498,6 +504,8 @@ async def compute_transcript_with_whisper_from_audio_func(
                 try:
                     model = get_whisper_model(model_size, device, compute_type)
                     run_kwargs = transcribe_kwargs_for_profile(run_profile, vad_filter, language)
+                    if _label_speakers:
+                        run_kwargs["word_timestamps"] = True  # needed to split lines at speaker changes
                     batched, batch_size = resolve_batched_mode()
                     if batched and device == "cuda":
                         print(f"Fast batched mode on (batch_size={batch_size}).")
@@ -538,6 +546,9 @@ async def compute_transcript_with_whisper_from_audio_func(
                                 "profile": run_profile,
                                 "source": "whisper",
                             }
+                            if _label_speakers and getattr(segment, "words", None):
+                                # word timings let speaker labels split a line where the speaker changes
+                                metadata["_words"] = [(round(w.start, 2), round(w.end, 2), w.word) for w in segment.words]
                             combined_transcript_text_list_of_metadata_dicts.append(metadata)
                     if combined_transcript_text_list_of_metadata_dicts:
                         print(f"Whisper attempt {label} succeeded with {len(combined_transcript_text_list_of_metadata_dicts)} segments.")
@@ -593,6 +604,16 @@ async def compute_transcript_with_whisper_from_audio_func(
     if not combined_transcript_text_list_of_metadata_dicts:
         print(f"No segments were returned for file {audio_file_name}.")
         return "", [], []
+    if _label_speakers and not use_openai_api_for_transcription:
+        labeled, note = speaker_labels.label_segments(audio_file_path, combined_transcript_text_list_of_metadata_dicts, _SETTINGS)
+        if note:
+            print(f"Speaker labels WARNING: {note}", flush=True)
+        combined_transcript_text_list_of_metadata_dicts = labeled
+        try:
+            speaker_labels.write_speakers_file(COMPLETED_JSON_DIR, audio_file_name, labeled)
+        except Exception as exc:
+            print(f"Could not write speakers file: {exc}", flush=True)
+    speaker_labels.strip_word_timings(combined_transcript_text_list_of_metadata_dicts)
     txt_path = os.path.join(COMPLETED_TRANSCRIPTS_DIR, f"{audio_file_name}.txt")
     with open(txt_path, 'w', encoding='utf-8') as file:
         file.write(render_readable_transcript(combined_transcript_text_list_of_metadata_dicts))
@@ -667,6 +688,8 @@ def remove_pagination_breaks(text: str) -> str:
 
 
 def render_readable_transcript(segments):
+    if any(isinstance(s, dict) and s.get("speaker") for s in segments):
+        return speaker_labels.render_txt(segments)  # v1.5.0: "Speaker 1: ..." paragraphs
     blocks = []
     for segment in segments:
         text = " ".join(str(segment.get("text", "")).split()).strip()

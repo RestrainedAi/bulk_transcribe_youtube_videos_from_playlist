@@ -41,6 +41,8 @@ def _cues(segments: Iterable[dict]) -> list[tuple[float, float, str]]:
         text = _clean(seg.get("text"))
         if not text:
             continue
+        if seg.get("speaker"):
+            text = f"{_clean(seg.get('speaker'))}: {text}"  # v1.5.0 speaker labels
         start = float(seg.get("start", 0) or 0)
         end = max(float(seg.get("end", start) or start), start + 0.2)
         cues.append((start, end, text))

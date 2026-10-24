@@ -65,7 +65,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "auto_needs_review": True,
     "keep_watching_after_run": False,
     "music_vocal_separation": True,
-    "dashboard_details_open": False,  # v1.4.1: Details box on the dashboard remembers open/closed
+    "dashboard_details_open": False,
+    # v1.5.0 optional speaker labels (local sherpa-onnx diarization, see docs/SPEAKER_LABELS.md)
+    "label_speakers": False,
+    "diarization_models_dir": "",  # empty = <app folder>\\models\\diarization
+    "speaker_count": 0,  # 0 = detect automatically  # v1.4.1: Details box on the dashboard remembers open/closed
 }
 
 

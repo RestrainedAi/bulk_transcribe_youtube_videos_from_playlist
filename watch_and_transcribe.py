@@ -874,6 +874,7 @@ async def transcribe_and_move(
             env["WHISPER_LANGUAGE"] = str(worker_settings.get("whisper_language") or "auto")
             env["WHISPER_DECODE_PROFILE"] = str(worker_settings.get("whisper_decode_profile") or "auto")
             env["WHISPER_BATCHED"] = "1" if worker_settings.get("whisper_batched") else "0"
+            env["LABEL_SPEAKERS"] = "1" if worker_settings.get("label_speakers") else "0"
             env["WHISPER_BATCH_SIZE"] = str(worker_settings.get("whisper_batch_size") or 8)
             try:
                 import queue_control

@@ -1,4 +1,4 @@
-﻿"""Desktop control panel for the transcription folder watcher (dark dashboard shell)."""
+"""Desktop control panel for the transcription folder watcher (dark dashboard shell)."""
 
 from __future__ import annotations
 
@@ -419,6 +419,7 @@ class ControlPanel(tk.Tk):
         self.set_asr_engine = tk.StringVar(value=_engine if _engine in ("whisper", "voxtral-mini-3b", "granite-2b") else "whisper")
         self.set_asr_crosscheck = tk.BooleanVar(value=bool(self._settings.get("asr_crosscheck", False)))
         self.set_whisper_batched = tk.BooleanVar(value=bool(self._settings.get("whisper_batched", False)))
+        self.set_label_speakers = tk.BooleanVar(value=bool(self._settings.get("label_speakers", False)))
         self.set_skip_duplicates = tk.BooleanVar(value=bool(self._settings.get("skip_duplicates", True)))
         self.set_completed_audio_dir = tk.StringVar(value=str(self._settings.get("completed_audio_dir", "completed_audio")))
         self._skin = themes.normalize(self._settings.get("theme"))
@@ -2063,7 +2064,7 @@ class ControlPanel(tk.Tk):
         ("whisper_decode_profile", "Transcription profile"), ("coverage_max_block_s", "Coverage max block"),
         ("coverage_max_gap_s", "Coverage max gap"), ("prefer_youtube_captions", "YouTube captions"),
         ("whisper_batched", "Fast batched mode"), ("asr_crosscheck", "Voxtral cross-check"),
-        ("max_concurrent_jobs", "Max concurrent jobs"), ("heartbeat_seconds", "Heartbeat"),
+        ("label_speakers", "Label speakers"), ("max_concurrent_jobs", "Max concurrent jobs"), ("heartbeat_seconds", "Heartbeat"),
         ("stall_timeout_seconds", "Stall timeout"), ("start_scan_existing", "Scan-existing"),
         ("skip_duplicates", "Skip duplicates"), ("handoff_try_api_first", "LLM API first"),
         ("log_profile", "Log profile"), ("watch_dir", "Watch folder"), ("completed_video_dir", "Completed videos"),
@@ -2084,7 +2085,7 @@ class ControlPanel(tk.Tk):
             "whisper_decode_profile": self.set_whisper_profile, "coverage_max_block_s": self.set_cov_block,
             "coverage_max_gap_s": self.set_cov_gap, "prefer_youtube_captions": self.set_prefer_captions,
             "whisper_batched": self.set_whisper_batched, "asr_crosscheck": self.set_asr_crosscheck,
-            "max_concurrent_jobs": self.set_jobs, "heartbeat_seconds": self.set_hb,
+            "label_speakers": self.set_label_speakers, "max_concurrent_jobs": self.set_jobs, "heartbeat_seconds": self.set_hb,
             "stall_timeout_seconds": self.set_stall, "start_scan_existing": self.set_scan,
             "keep_watching_after_run": self.set_keep_watching,
             "skip_duplicates": self.set_skip_duplicates, "handoff_try_api_first": self.set_handoff_api,
@@ -2270,6 +2271,8 @@ class ControlPanel(tk.Tk):
         check(tf, "whisper_batched", self.set_whisper_batched, "Fast batched mode (about 4x faster)")
         check(tf, "asr_crosscheck", self.set_asr_crosscheck, "Voxtral cross-check",
               "Runs a second local model on flagged spots and marks lines where the two disagree.")
+        check(tf, "label_speakers", self.set_label_speakers, "Label speakers",
+              "Marks each line Speaker 1, Speaker 2... Runs locally. Rename speakers in the <name>.speakers.json file.")
         # Appearance (v1.3.1 skins)
         st["ap"], apf = self._dcard(o)
         self._dlabel(apf, "Appearance", font=F_SECTION).pack(fill="x")
@@ -2445,6 +2448,7 @@ class ControlPanel(tk.Tk):
             "asr_engine": self.set_asr_engine.get().strip() or "whisper",
             "asr_crosscheck": bool(self.set_asr_crosscheck.get()),
             "whisper_batched": bool(self.set_whisper_batched.get()),
+            "label_speakers": bool(self.set_label_speakers.get()),
             "skip_duplicates": bool(self.set_skip_duplicates.get()),
             "completed_audio_dir": self.set_completed_audio_dir.get().strip(),
             "theme": themes.normalize(self.set_theme.get()),
@@ -3581,6 +3585,7 @@ class ControlPanel(tk.Tk):
         self.set_asr_engine.set(str(s.get("asr_engine", "whisper")))
         self.set_asr_crosscheck.set(bool(s.get("asr_crosscheck", False)))
         self.set_whisper_batched.set(bool(s.get("whisper_batched", False)))
+        self.set_label_speakers.set(bool(s.get("label_speakers", False)))
         self.set_skip_duplicates.set(bool(s.get("skip_duplicates", True)))
         self.set_completed_audio_dir.set(str(s.get("completed_audio_dir", "completed_audio")))
         if hasattr(self, "set_theme"):

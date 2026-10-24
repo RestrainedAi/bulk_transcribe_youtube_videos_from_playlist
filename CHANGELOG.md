@@ -2,6 +2,18 @@
 
 All notable changes to the Transcription Workbench.
 
+## 1.5.0 (2026-10-23, test build)
+
+- **Label speakers** (new checkbox in Settings > Transcription, off by default). Transcripts show
+  `Speaker 1:` / `Speaker 2:`: paragraphs in .txt, every cue in .srt/.vtt, a `speaker` field/column in
+  .json/.csv. Lines where the speaker changes mid-sentence are split at the change (word timings).
+- `<name>.speakers.json` lets you type real names; `python speaker_labels.py rename "<name>"` applies them
+  to all outputs (one-time JSON backup first). Re-runs keep names you typed.
+- Runs locally on the CPU with sherpa-onnx (Apache-2.0), pyannote segmentation-3.0 ONNX (MIT) and the
+  WeSpeaker ResNet34-LM embedding (CC-BY-4.0). No GPL, no Hugging Face token. See docs/SPEAKER_LABELS.md.
+- Never fails a job: if the models are missing or anything breaks, the transcript is saved without labels.
+- New dependency: `sherpa-onnx`. Models: `python speaker_labels.py download`.
+
 ## 1.4.2 (2026-10-23, test build)
 
 - **Accuracy fix: Whisper's words are kept when the engines disagree.** When a second engine (e.g. granite-2b)

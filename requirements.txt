@@ -16,3 +16,4 @@ youtube-transcript-api
 anthropic
 yt-dlp
 yt-dlp-ejs
+sherpa-onnx>=1.12  # v1.5.0 speaker labels (Apache-2.0)

@@ -240,3 +240,5 @@ venv_old_freeze.txt
 .vscode/
 logs/
 *.log
+# v1.5.0 speaker-label models (downloaded by speaker_labels.py download)
+models/diarization/
