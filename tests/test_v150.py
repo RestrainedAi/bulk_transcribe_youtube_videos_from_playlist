@@ -11,9 +11,9 @@ from watcher_settings import DEFAULT_SETTINGS
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_version_is_150() -> None:
+def test_version_is_150_or_later() -> None:
     import app_version
-    assert app_version.APP_VERSION == "1.5.0"
+    assert tuple(int(x) for x in app_version.APP_VERSION.split(".")) >= (1, 5, 0)
 
 
 def test_off_by_default_and_env_override(monkeypatch) -> None:

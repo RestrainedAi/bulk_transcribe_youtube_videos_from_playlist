@@ -20,6 +20,7 @@ from tqdm import tqdm
 import asr_engines
 import transcript_search
 import coverage_check
+import speech_rescue
 from output_paths import ensure_output_dirs
 from watcher_settings import load_settings
 
@@ -184,6 +185,28 @@ def resolve_whisper_language(settings: dict | None = None) -> str | None:
 
 def _speaker_labels_on() -> bool:
     return speaker_labels.enabled(_SETTINGS)
+
+
+def whisper_segment_metadata(segment, detected_language, detected_language_prob, model_tag, run_profile,
+                             label_speakers=False) -> dict:
+    """One transcript line from a faster-whisper segment (also used for v1.5.1 rescued speech)."""
+    metadata = {
+        "start": round(segment.start, 2),
+        "end": round(segment.end, 2),
+        "text": segment.text,
+        "avg_logprob": round(segment.avg_logprob, 2),
+        "no_speech_prob": round(segment.no_speech_prob, 3),
+        "compression_ratio": round(segment.compression_ratio, 2),
+        "language": detected_language,
+        "language_probability": detected_language_prob,
+        "model": model_tag,
+        "profile": run_profile,
+        "source": "whisper-rescue" if getattr(segment, "rescued", False) else "whisper",
+    }
+    if label_speakers and getattr(segment, "words", None):
+        # word timings let speaker labels split a line where the speaker changes
+        metadata["_words"] = [(round(w.start, 2), round(w.end, 2), w.word) for w in segment.words]
+    return metadata
 
 
 def transcribe_kwargs_for_profile(profile: str, vad_filter: bool, language: str | None = "en") -> dict:
@@ -533,23 +556,34 @@ async def compute_transcript_with_whisper_from_audio_func(
                             combined_transcript_text += segment.text + " "
                             sentences = sophisticated_sentence_splitter(segment.text)
                             list_of_transcript_sentences.extend(sentences)
-                            metadata = {
-                                "start": round(segment.start, 2),
-                                "end": round(segment.end, 2),
-                                "text": segment.text,
-                                "avg_logprob": round(segment.avg_logprob, 2),
-                                "no_speech_prob": round(segment.no_speech_prob, 3),
-                                "compression_ratio": round(segment.compression_ratio, 2),
-                                "language": detected_language,
-                                "language_probability": detected_language_prob,
-                                "model": f"{model_size}/{device}/{compute_type}",
-                                "profile": run_profile,
-                                "source": "whisper",
-                            }
-                            if _label_speakers and getattr(segment, "words", None):
-                                # word timings let speaker labels split a line where the speaker changes
-                                metadata["_words"] = [(round(w.start, 2), round(w.end, 2), w.word) for w in segment.words]
+                            metadata = whisper_segment_metadata(
+                                segment, detected_language, detected_language_prob,
+                                f"{model_size}/{device}/{compute_type}", run_profile, _label_speakers)
                             combined_transcript_text_list_of_metadata_dicts.append(metadata)
+                    if run_kwargs.get("vad_filter") and combined_transcript_text_list_of_metadata_dicts:
+                        # v1.5.1: put back speech the VAD found but Whisper skipped (e.g. a quiet first phrase).
+                        try:
+                            from faster_whisper.audio import decode_audio
+                            _audio = decode_audio(audio_file_path, sampling_rate=speech_rescue.SAMPLE_RATE)
+                            _spans = speech_rescue.vad_speech_spans(_audio, run_kwargs.get("vad_parameters"))
+                            _found = speech_rescue.rescue(_audio, _spans, combined_transcript_text_list_of_metadata_dicts,
+                                                          model.transcribe, run_kwargs)
+                            for segment in _found:
+                                print(f"Rescued skipped speech [{segment.start:.2f}s->{segment.end:.2f}s]: "
+                                      f"{' '.join(segment.text.split())[:120]}")
+                                metadata = whisper_segment_metadata(
+                                    segment, detected_language, detected_language_prob,
+                                    f"{model_size}/{device}/{compute_type}", run_profile, _label_speakers)
+                                combined_transcript_text_list_of_metadata_dicts.append(metadata)
+                            if _found:
+                                combined_transcript_text_list_of_metadata_dicts.sort(key=lambda m: float(m["start"]))
+                                combined_transcript_text = " ".join(
+                                    str(m["text"]).strip() for m in combined_transcript_text_list_of_metadata_dicts) + " "
+                                list_of_transcript_sentences = []
+                                for m in combined_transcript_text_list_of_metadata_dicts:
+                                    list_of_transcript_sentences.extend(sophisticated_sentence_splitter(m["text"]))
+                        except Exception as rescue_exc:  # optional: never lose the main result
+                            print(f"Speech rescue skipped: {type(rescue_exc).__name__}: {rescue_exc}")
                     if combined_transcript_text_list_of_metadata_dicts:
                         print(f"Whisper attempt {label} succeeded with {len(combined_transcript_text_list_of_metadata_dicts)} segments.")
                         break

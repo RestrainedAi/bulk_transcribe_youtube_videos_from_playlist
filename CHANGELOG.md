@@ -2,6 +2,19 @@
 
 All notable changes to the Transcription Workbench.
 
+## 1.5.1 (2026-10-23, test build)
+
+- **Fixed: the first phrase of a file (about 0:01-0:06) was dropped.** Root cause: with the 1.4.2 speech
+  VAD (min silence 1000 ms, pad 400 ms) the VAD still found the quiet opening phrase, but Whisper decoded
+  the louder speech after it and silently skipped the phrase (reproduced on a test clip: 1.4.1 settings kept
+  it, 1.4.2 settings dropped it; the priming prompt and the no-speech threshold were not the cause, and
+  speaker labels never removed lines). The same fragility could also drop speech after a quiet opening.
+- New `speech_rescue.py`: after the main Whisper pass, any VAD speech that no transcript line covers
+  (1.5 s or longer) is cut out, peak-normalised and transcribed again on its own (no VAD, no priming prompt),
+  then merged back in time order. Rescued lines carry `"source": "whisper-rescue"`. Never fails a job;
+  music profile (VAD off) is unchanged.
+- Regression tests: `tests/test_v151.py`.
+
 ## 1.5.0 (2026-10-23, test build)
 
 - **Label speakers** (new checkbox in Settings > Transcription, off by default). Transcripts show
@@ -13,6 +26,7 @@ All notable changes to the Transcription Workbench.
   WeSpeaker ResNet34-LM embedding (CC-BY-4.0). No GPL, no Hugging Face token. See docs/SPEAKER_LABELS.md.
 - Never fails a job: if the models are missing or anything breaks, the transcript is saved without labels.
 - New dependency: `sherpa-onnx`. Models: `python speaker_labels.py download`.
+- Known issue found in testing: dropped the first phrase of a file (about 0:01-0:06). Fixed in 1.5.1.
 
 ## 1.4.2 (2026-10-23, test build)
 

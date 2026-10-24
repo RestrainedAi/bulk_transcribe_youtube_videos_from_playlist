@@ -123,6 +123,17 @@ youtube-transcript-api  # YouTube caption fallback
 
 ---
 
+## Current status (2026-10-23)
+
+- **Dev clone:** `C:\Users\blahn\wt-workbench-140`, branch `feat/140-library-review-music`. Commits: 98893f7 (1.4.0), d2816e7 (1.4.1), 192af11 (1.4.2), 05ab936 (1.5.0), 1.5.1 (dropped-opening fix). Local only, not pushed, not merged.
+- **Live install:** `I:\bulk_transcribe_videos` is still **1.3.2**. Installing 1.4.x/1.5.x waits for Thomas to stop the watcher.
+- **1.4.0:** shared Aeonimus Library + `migrate_to_library.py` (copy with SHA-256 checks), needs-review folder, audio modes per job (docs/AUDIO_MODES.md), watcher turns itself off after a run (unless "Keep watching after run"), plain-language status, mojibake fix, theme-proof tests.
+- **1.4.1:** big status light (RUNNING / IDLE / DONE with review count / STOPPED), Needs review list with Re-run failed + folder link, collapsible Details box closed by default (remembered), duplicate indicators removed.
+- **1.4.2:** accuracy fix: Whisper's words are kept when engines disagree; the other engine's (e.g. granite) text goes in `alt_text` and the line is flagged. Speech VAD: threshold 0.3, min silence 1000 ms, speech pad 400 ms.
+- **1.5.0:** optional speaker labels (sherpa-onnx + pyannote segmentation-3.0 ONNX + WeSpeaker ResNet34-LM; no GPL, no HF token), `<name>.speakers.json`, `python speaker_labels.py rename "<name>"`. See docs/SPEAKER_LABELS.md.
+- **1.5.1:** fixes the dropped first phrase (about 0:01-0:06). The VAD found the quiet opening, but with the 1.4.2 VAD chunking Whisper skipped it. `speech_rescue.py` re-transcribes any VAD speech no line covers (1.5 s or longer) and merges it back (`source: whisper-rescue`). Tests: `tests/test_v151.py`.
+- **Next:** install 1.5.1 on the live repo once the watcher is stopped; license to-dos before selling (LGPL ffmpeg build, NVIDIA redistribution terms).
+
 ## Things To Do
 
 ### ✅ Completed
