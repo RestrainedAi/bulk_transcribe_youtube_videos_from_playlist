@@ -175,6 +175,15 @@ def process_alive(pid: int) -> bool:
     return bool(pid) and psutil.pid_exists(int(pid))
 
 
+
+def stop_result_message(code: int, stdout: str, stderr: str) -> tuple[bool, str]:
+    """DEV-174: turn stop_watcher.ps1 output into (stopped cleanly?, one line for the UI)."""
+    lines = [ln.strip() for ln in (stdout or "").splitlines() if ln.strip()]
+    if code == 0:
+        return True, (lines[-1] if lines else "Watcher OFF")
+    err = [ln.strip() for ln in (stderr or "").splitlines() if ln.strip()]
+    return False, (lines[-1] if lines else (err[0] if err else f"Stop script failed (exit {code})"))
+
 class HoverTip:
     """Small tooltip for a widget (v1.4.0 status badge)."""
 
@@ -2910,23 +2919,33 @@ class ControlPanel(tk.Tk):
             args += ["-CompletedDir", str(self._completed_dir())]
         if scan:
             args.append("-ScanExisting")
-        subprocess.Popen(args, cwd=str(ROOT), shell=False)
+        subprocess.Popen(args, cwd=str(ROOT), shell=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     def _stop_watcher(self) -> None:
+        """DEV-174: run the stop script, wait for it, and show whether everything really stopped."""
         self._settings = load_settings(ROOT)
-        subprocess.Popen(
-            [
-                "powershell",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(STOP_SCRIPT),
-                "-WatchDir",
-                str(self._watch_dir()),
-            ],
-            cwd=str(ROOT),
-            shell=False,
-        )
+        args = ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(STOP_SCRIPT), "-WatchDir", str(self._watch_dir())]
+        self.detail_var.set("Stopping watcher and its workers...")
+
+        def work() -> None:
+            try:
+                r = subprocess.run(args, cwd=str(ROOT), capture_output=True, text=True, timeout=90,
+                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                ok, msg = stop_result_message(r.returncode, r.stdout, r.stderr)
+            except Exception as exc:  # noqa: BLE001
+                ok, msg = False, f"Stop script could not run: {exc}"
+            self.after(0, lambda: self._show_stop_result(ok, msg))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_stop_result(self, ok: bool, msg: str) -> None:
+        self.detail_var.set(msg)
+        try:
+            self._easy_status(msg, ACCENT_GREEN if ok else ACCENT_RED)
+        except Exception:  # noqa: BLE001
+            pass
+        if not ok:
+            messagebox.showwarning("Stop watcher", msg)
 
     def _watch_dir(self) -> Path:
         return resolved_watch_dir(ROOT, self._settings)
@@ -3787,6 +3806,7 @@ class ControlPanel(tk.Tk):
                     "duration": job.get("duration"),
                     "engine": job.get("engine"),
                     "started_at_epoch": job.get("started_at_epoch"),
+                    **{k: job.get(k) for k in ("pass", "pass_number", "pass_started_epoch", "pass_elapsed_s")},
                 }
             )
         return derived, stale_count
@@ -4160,8 +4180,12 @@ class ControlPanel(tk.Tk):
             frac, eta = queue_control.job_progress(j, now)
             bar = ("#" * int((frac or 0) * 12)).ljust(12, ".")
             prog = f"{bar} {frac * 100:.0f}%" if frac is not None else f"{float(j.get('last_segment_end') or 0):.0f}s"
+            second = queue_control.pass_display(j, now)
+            if second:  # DEV-173: Whisper is done; show the second pass and its running time
+                prog = f"{second[0]} {queue_control.format_eta(second[1])}"
             tree.insert("", tk.END, iid=p or None, values=(Path(p).name if p else "-", str(j.get("phase", "")),
-                        str(j.get("engine") or "-"), prog, queue_control.format_eta(eta)), tags=("st_success",))
+                        str(j.get("engine") or "-"), prog, "-" if second else queue_control.format_eta(eta)),
+                        tags=("st_success",))
             if first is None:
                 first = (j, frac, eta)
         queued = [q for q in (data.get("queued_order") or []) if q not in active_paths]
@@ -4194,7 +4218,12 @@ class ControlPanel(tk.Tk):
             if hasattr(self, "lt_chip"):
                 self._set_chip(self.lt_chip, "success", str(j.get("phase") or "decoding").upper()[:16])
             pos = f"{queue_control.format_eta(seg)} / {queue_control.format_eta(dur)}" if dur else f"{seg:.0f}s"
-            self.live_detail_var.set(f"{j.get('engine') or 'engine ?'}  |  {pos}  |  ETA {queue_control.format_eta(eta)}")
+            second = queue_control.pass_display(j, now)
+            if second:
+                self.live_detail_var.set(f"{second[0]} running {queue_control.format_eta(second[1])}  |  "
+                                         f"Whisper pass done ({pos})  |  no ETA for this pass yet")
+            else:
+                self.live_detail_var.set(f"Pass 1: Whisper  |  {pos}  |  ETA {queue_control.format_eta(eta)}")
         else:
             self.live_name_var.set("Queue paused" if self._queue_paused and self._queue_order else "Nothing transcribing right now")
             self._set_live_progress(None)

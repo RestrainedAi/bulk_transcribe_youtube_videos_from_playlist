@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -181,6 +182,53 @@ def write_flag_summary(path: str | Path, segments: list[dict], header: str) -> N
     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+HEARTBEAT_SECONDS = 30.0
+_pass_listener = None
+
+
+def set_pass_listener(fn) -> None:
+    """DEV-173: fn(event, engine, elapsed_seconds) gets 'start', 'beat' (every HEARTBEAT_SECONDS) and 'end'."""
+    global _pass_listener
+    _pass_listener = fn
+
+
+def _notify(event: str, engine: str, elapsed: float = 0.0) -> None:
+    if _pass_listener is not None:
+        try:
+            _pass_listener(event, engine, elapsed)
+        except Exception:  # a progress hiccup must never stop a transcription
+            pass
+
+
+def run_with_heartbeat(cmd: list[str], env: dict, engine: str, timeout: float,
+                       beat_seconds: float | None = None) -> tuple[int, str]:
+    """Run cmd, printing/notifying a heartbeat while it works. Returns (exit code, output tail).
+
+    Output goes to a temp file, not a pipe, so a chatty child can never block on a full pipe.
+    """
+    beat = beat_seconds or HEARTBEAT_SECONDS
+    label = ENGINES.get(engine, (None, None, engine))[2]
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as out:
+        proc = subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT, env=env,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        t0 = time.monotonic()
+        while True:
+            try:
+                proc.wait(timeout=beat)
+                break
+            except subprocess.TimeoutExpired:
+                elapsed = time.monotonic() - t0
+                if elapsed > timeout:
+                    proc.kill()
+                    proc.wait()
+                    raise RuntimeError(f"{label} timed out after {elapsed:.0f}s")
+                print(f"[pass] {label} still running ({elapsed / 60:.1f} min)", flush=True)
+                _notify("beat", engine, elapsed)
+        out.seek(0)
+        tail = "\n".join(out.read().strip().splitlines()[-3:])
+    return proc.returncode, tail
+
+
 def run_worker(engine: str, audio_path: str, settings: dict | None = None) -> dict:
     """Run asr_eval_worker.py in the ASR venv; returns its JSON result or raises."""
     folder = ENGINES[engine][0]
@@ -192,11 +240,9 @@ def run_worker(engine: str, audio_path: str, settings: dict | None = None) -> di
         cmd = [str(eval_python(settings)), str(REPO_ROOT / "asr_eval_worker.py"), "--engine", engine,
                "--model-dir", str(models_dir(settings) / str(folder)), "--audio", wav, "--out", out_json]
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              timeout=WORKER_TIMEOUT_SECONDS, env=env)
-        if proc.returncode != 0 or not os.path.isfile(out_json):
-            tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-3:]
-            raise RuntimeError(f"{engine} worker failed (exit {proc.returncode}): {' | '.join(tail)}")
+        code, tail = run_with_heartbeat(cmd, env, engine, WORKER_TIMEOUT_SECONDS)
+        if code != 0 or not os.path.isfile(out_json):
+            raise RuntimeError(f"{engine} worker failed (exit {code}): {tail.replace(chr(10), ' | ')}")
         return json.loads(Path(out_json).read_text(encoding="utf-8"))
 
 
@@ -220,7 +266,12 @@ def apply_engine_pipeline(audio_path: str, stem: str, segments: list[dict], sett
         else:
             try:
                 print(f"ASR engine: running {ENGINES[alt_engine][2]} ...", flush=True)
-                result = runner(alt_engine, audio_path, settings)
+                _notify("start", alt_engine)
+                t0 = time.monotonic()
+                try:
+                    result = runner(alt_engine, audio_path, settings)
+                finally:
+                    _notify("end", alt_engine, time.monotonic() - t0)
             except Exception as exc:  # never crash the job because of an optional engine
                 note = f"{ENGINES[alt_engine][2]} failed: {exc}. Kept the faster-whisper result."
         if note:

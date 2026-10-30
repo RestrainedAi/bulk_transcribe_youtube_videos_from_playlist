@@ -24,10 +24,23 @@ def _nvidia_sample() -> dict[str, Any] | None:
             text=True,
             timeout=3,
             shell=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         if r.returncode != 0 or not r.stdout.strip():
             return None
-        parts = [p.strip() for p in r.stdout.strip().split(",")]
+        return parse_nvidia_line(r.stdout)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError, ValueError):
+        return None
+
+
+def parse_nvidia_line(stdout: str) -> dict[str, Any] | None:
+    """First GPU only: with two GPUs nvidia-smi prints two lines, which used to break the parse."""
+    try:
+        lines = (stdout or "").strip().splitlines()
+        if not lines:
+            return None
+        first = lines[0]
+        parts = [p.strip() for p in first.split(",")]
         if len(parts) >= 3:
             return {
                 "gpu_util": float(parts[0]) if parts[0] else None,
@@ -46,10 +59,11 @@ def sample_snapshot(log_profile: str) -> dict[str, Any]:
         "mem_percent": psutil.virtual_memory().percent,
         "mem_used_mb": round(psutil.virtual_memory().used / (1024 * 1024), 1),
     }
-    if log_profile in ("tuning", "debug"):
-        nv = _nvidia_sample()
-        if nv:
-            snap["gpu"] = nv
+    # DEV-176: the Monitor always needs the GPU. It used to be sampled only in tuning/debug
+    # profiles, so on the default "standard" profile the Monitor showed "GPU unavailable".
+    nv = _nvidia_sample()
+    if nv:
+        snap["gpu"] = nv
     if log_profile == "debug":
         snap["python_threads"] = threading.active_count()
     return snap

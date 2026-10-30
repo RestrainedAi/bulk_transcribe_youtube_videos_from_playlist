@@ -6,6 +6,8 @@ import time
 
 import bulk_transcribe_youtube_videos_from_playlist as bt
 from safe_io import atomic_write_json
+import asr_engines
+import console_guard
 
 
 def utc_now() -> str:
@@ -47,6 +49,45 @@ def main() -> int:
         "last_segment_text": None,
     }
     write_progress(progress_path, progress)
+    console_guard.disable_quickedit()
+
+    # DEV-173: each pass (Whisper, then Granite/Voxtral) gets its own start/end/seconds,
+    # in the progress JSON (for the UI) and as [pass] lines in whisper_live.log (to compare speeds).
+    passes: list[dict] = []
+    progress["passes"] = passes
+
+    def end_pass(ok: bool = True) -> None:
+        if passes and "end" not in passes[-1]:
+            p = passes[-1]
+            p["end"] = utc_now()
+            p["seconds"] = round(time.time() - p.pop("_t0"), 1)
+            p["ok"] = ok
+            print(f"[pass] {p['name']} END {p['end']} took {p['seconds']:.0f}s ok={ok} file={stem}", flush=True)
+            write_progress(progress_path, progress)
+
+    def begin_pass(name: str) -> None:
+        end_pass()
+        now = utc_now()
+        passes.append({"name": name, "start": now, "_t0": time.time()})
+        progress["pass"] = name
+        progress["pass_number"] = len(passes)
+        progress["pass_started_at"] = now
+        progress["pass_started_epoch"] = time.time()
+        progress["pass_elapsed_s"] = 0
+        print(f"[pass] {name} START {now} file={stem}", flush=True)
+        write_progress(progress_path, progress)
+
+    def on_pass_event(event: str, engine: str, elapsed: float) -> None:
+        if event == "start":
+            begin_pass(engine)
+        elif event == "beat":
+            progress["pass_elapsed_s"] = round(elapsed)
+            progress["last_progress_at"] = utc_now()  # heartbeat: the second pass is alive
+            write_progress(progress_path, progress)
+        elif event == "end":
+            end_pass()
+
+    asr_engines.set_pass_listener(on_pass_event)
 
     def on_progress(start: float, end: float, text: str) -> None:
         progress["status"] = "processing"
@@ -66,6 +107,7 @@ def main() -> int:
         progress["vocals_separated"] = audio_path != input_path
         write_progress(progress_path, progress)
     try:
+        begin_pass("whisper")
         transcript_text, transcript_segments, _sentences = asyncio.run(
             bt.compute_transcript_with_whisper_from_audio_func(
                 audio_path,
@@ -82,12 +124,14 @@ def main() -> int:
         if not (os.path.isfile(txt_path) and os.path.isfile(csv_path) and os.path.isfile(json_path)):
             raise RuntimeError("transcription_outputs_missing")
     except Exception as exc:
+        end_pass(ok=False)
         progress["status"] = "failed"
         progress["error"] = f"{type(exc).__name__}: {exc}"
         progress["failed_at"] = utc_now()
         write_progress(progress_path, progress)
         raise
 
+    end_pass()
     progress["status"] = "completed"
     progress["completed_at"] = utc_now()
     write_progress(progress_path, progress)

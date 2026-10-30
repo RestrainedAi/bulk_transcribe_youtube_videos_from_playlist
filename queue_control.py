@@ -159,6 +159,22 @@ def job_progress(job: dict, now: float) -> tuple[float | None, float | None]:
     return frac, max(0.0, (dur - seg) * elapsed / seg)
 
 
+PASS_LABELS = {"whisper": "Whisper", "granite-2b": "Granite", "voxtral-mini-3b": "Voxtral"}
+
+
+def pass_display(job: dict, now: float) -> tuple[str, float] | None:
+    """DEV-173: (label, elapsed seconds) while a second pass runs, so the UI stops showing a frozen 100%.
+
+    Returns None during the Whisper pass (its own % and ETA are correct) or when unknown.
+    """
+    name = str(job.get("pass") or "")
+    if not name or name == "whisper":
+        return None
+    started = float(job.get("pass_started_epoch") or 0)
+    elapsed = max(0.0, now - started) if started else float(job.get("pass_elapsed_s") or 0)
+    return f"Pass {int(job.get('pass_number') or 2)}: {PASS_LABELS.get(name, name)}", elapsed
+
+
 AUDIO_MODES = ("speech", "speech_music", "music")
 AUDIO_MODE_LABELS = {"speech": "Speech", "speech_music": "Speech over music", "music": "Music/lyrics"}
 

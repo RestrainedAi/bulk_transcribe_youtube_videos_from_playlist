@@ -31,27 +31,49 @@ $wasRunning = [bool]$status.running
 $watcherPid = [int]$status.pid
 
 $process = Get-Process -Id $watcherPid -ErrorAction SilentlyContinue
+$taskkill = Join-Path $env:SystemRoot "System32\taskkill.exe"
+function Stop-Tree([int]$TreePid) {
+  if ($TreePid -le 0) { return }
+  if (!(Get-Process -Id $TreePid -ErrorAction SilentlyContinue)) { return }
+  if (Test-Path $taskkill) { & $taskkill /PID $TreePid /T /F 2>&1 | Out-Null }
+  Stop-Process -Id $TreePid -Force -ErrorAction SilentlyContinue
+}
+# DEV-174: our workers (Whisper worker, Granite/Voxtral eval child, ffmpeg) found by command line,
+# so orphans whose watcher already died are stopped too.
+function Get-OurWorkers {
+  $rootLc = $root.ToLowerInvariant()
+  @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+      $cl = "$($_.CommandLine)".ToLowerInvariant()
+      ($cl -like "*watch_transcribe_worker.py*" -or $cl -like "*asr_eval_worker.py*" -or $cl -like "*watch_and_transcribe.py*") -and
+      ($cl -like "*$rootLc*" -or $cl -like "*$($watchAbs.ToLowerInvariant())*")
+    })
+}
+$workerPids = @()
+foreach ($j in @($status.active_jobs)) { if ($j -and $j.worker_pid) { $workerPids += [int]$j.worker_pid } }
+if ($status.last_worker_pid) { $workerPids += [int]$status.last_worker_pid }
+Get-ChildItem -Path $watchAbs -Filter '.watch_progress_*.json' -File -ErrorAction SilentlyContinue | ForEach-Object {
+  try { $pj = Get-Content $_.FullName -Raw | ConvertFrom-Json; if ($pj.worker_pid) { $workerPids += [int]$pj.worker_pid } } catch {}
+}
+try {
+  if ($process) { Stop-Tree $watcherPid }
+  foreach ($w in ($workerPids | Select-Object -Unique)) { Stop-Tree $w }
+  foreach ($w in (Get-OurWorkers)) { Stop-Tree ([int]$w.ProcessId) }
+  Start-Sleep -Milliseconds 500
+  $left = @(Get-OurWorkers)
+  if ($left.Count -gt 0) {
+    Write-Output "Watcher NOT fully stopped: still running PID(s) $(($left | ForEach-Object { $_.ProcessId }) -join ', ')"
+    exit 2
+  }
+} catch {
+  Write-Error "Failed to stop PID ${watcherPid}: $($_.Exception.Message)"
+  exit 1
+}
 if ($process) {
-  try {
-    # /T terminates the process tree (watcher + child transcription workers).
-    $taskkill = Join-Path $env:SystemRoot "System32\taskkill.exe"
-    if (Test-Path $taskkill) {
-      & $taskkill /PID $watcherPid /T /F | Out-Null
-    }
-    if (!(Test-Path $taskkill) -or $LASTEXITCODE -ne 0) {
-      Stop-Process -Id $watcherPid -Force -ErrorAction Stop
-    }
-    Write-Output "Watcher OFF (stopped PID $watcherPid and child processes)"
-  } catch {
-    Write-Error "Failed to stop PID ${watcherPid}: $($_.Exception.Message)"
-    exit 1
-  }
+  Write-Output "Watcher OFF (stopped PID $watcherPid; verified no worker or Granite processes left)"
+} elseif ($wasRunning) {
+  Write-Output "Watcher process not found (PID $watcherPid). Marking as OFF; verified no workers left."
 } else {
-  if ($wasRunning) {
-    Write-Output "Watcher process not found (PID $watcherPid). Marking as OFF."
-  } else {
-    Write-Output "Watcher already OFF"
-  }
+  Write-Output "Watcher already OFF (verified no workers left)"
 }
 
 $status.running = $false
@@ -73,5 +95,10 @@ $status.queue_count = @(
   Get-ChildItem -Path $watchAbs -File -ErrorAction SilentlyContinue |
     Where-Object { $mediaExts -contains $_.Extension.ToLowerInvariant() }
 ).Count
-Get-ChildItem -Path $watchAbs -Filter '.watch_progress_*.json' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+# Keep progress files that say "completed": Reconcile and restart use them to mark the file done.
+Get-ChildItem -Path $watchAbs -Filter '.watch_progress_*.json' -File -ErrorAction SilentlyContinue | ForEach-Object {
+  $keep = $false
+  try { $keep = ((Get-Content $_.FullName -Raw | ConvertFrom-Json).status -eq "completed") } catch {}
+  if (-not $keep) { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+}
 ($status | ConvertTo-Json -Depth 5) | Set-Content -Path $statusFile -Encoding utf8

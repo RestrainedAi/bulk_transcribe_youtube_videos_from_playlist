@@ -26,6 +26,7 @@ from output_paths import ensure_output_dirs
 from safe_io import atomic_write_json
 from watcher_settings import load_settings
 from watcher_telemetry import TelemetryWriter
+import console_guard
 
 MEDIA_EXTENSIONS = {
     ".mp4",
@@ -270,6 +271,7 @@ class StatusTracker:
         worker_pid: int | None,
         last_progress_at: str | None,
         last_segment_end: float | int | None,
+        pass_info: dict | None = None,
     ) -> None:
         with self._lock:
             self.state["status"] = "processing"
@@ -281,7 +283,7 @@ class StatusTracker:
             self.state["last_segment_end"] = float(last_segment_end or 0.0)
             self.state["stalled"] = False
             self.state["last_event"] = f"progress:{src_path}"
-            self._sync_active_job_segment(src_path, worker_pid, last_segment_end)
+            self._sync_active_job_segment(src_path, worker_pid, last_segment_end, pass_info)
             self._write_status()
 
     def _sync_active_job_segment(
@@ -289,6 +291,7 @@ class StatusTracker:
         src_path: str,
         worker_pid: int | None,
         last_segment_end: float | int | None,
+        pass_info: dict | None = None,
     ) -> None:
         jobs: list[dict] = []
         seg = float(last_segment_end or 0.0)
@@ -299,6 +302,7 @@ class StatusTracker:
                 nj["last_segment_end"] = seg
                 nj["worker_pid"] = worker_pid
                 nj["phase"] = "transcribing"
+                nj.update(pass_info or {})
                 jobs.append(nj)
                 found = True
             else:
@@ -556,6 +560,32 @@ def count_watch_media_files(watch_dir: str) -> int:
         return sum(1 for p in Path(watch_dir).iterdir() if is_media_path(str(p)))
     except OSError:
         return 0
+
+
+PASS_KEYS = ("pass", "pass_number", "pass_started_epoch", "pass_elapsed_s")
+
+
+def pass_fields(progress_data: dict) -> dict:
+    """DEV-173: the running pass (whisper / granite-2b ...) copied from the worker's progress file."""
+    return {k: progress_data[k] for k in PASS_KEYS if k in progress_data}
+
+
+def finished_outputs_stem(watch_dir: str, src_path: str, output_dirs: dict[str, str]) -> tuple[str, str] | None:
+    """DEV-176: (stem, progress file) when a worker already finished this source and all outputs exist.
+
+    Used on restart so a file whose transcript was written before a crash/stop is marked done,
+    not transcribed again (tonight's CPS rerun).
+    """
+    data, path = find_latest_progress_for_source(watch_dir, src_path)
+    if not data or data.get("status") != "completed":
+        return None
+    stem = str(data.get("stem") or "").strip()
+    if not stem:
+        return None
+    needed = (os.path.join(output_dirs["completed_transcripts"], stem + ".txt"),
+              os.path.join(output_dirs["completed_csv"], stem + ".csv"),
+              os.path.join(output_dirs["completed_json"], stem + ".json"))
+    return (stem, path) if all(os.path.isfile(p) for p in needed) else None
 
 
 def find_latest_progress_for_source(watch_dir: str, src_path: str) -> tuple[dict, str] | tuple[None, None]:
@@ -831,6 +861,25 @@ async def transcribe_and_move(
     base_guess = safe_output_stem(src_path)
     ext = path_obj.suffix
     repo_root = os.path.dirname(os.path.abspath(__file__))
+    done = finished_outputs_stem(watch_dir, src_path, output_dirs)
+    if done:
+        stem, prog_path = done
+        dest_video = os.path.join(output_dirs["completed_videos"], stem + ext)
+        try:
+            if not os.path.exists(dest_video):
+                shutil.move(src_path, dest_video)
+            try:
+                import file_fingerprint
+                file_fingerprint.record(output_dirs["completed_json"], file_fingerprint.fingerprint(dest_video), stem)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[watch] Fingerprint record skipped: {exc}")
+            if prog_path and os.path.exists(prog_path):
+                os.remove(prog_path)
+            print(f"[watch] Already finished before restart: {src_path!r} -> {stem!r}; marked done, not rerun.")
+            status.mark_completed(src_path, dest_video)
+            return
+        except OSError as exc:
+            print(f"[watch] Could not mark finished file done ({exc}); transcribing again.")
     fingerprint = None
     try:
         import file_fingerprint
@@ -960,6 +1009,7 @@ async def transcribe_and_move(
                     worker_pid=int(progress_data.get("worker_pid") or process.pid),
                     last_progress_at=progress_data.get("last_progress_at") or progress_data.get("updated_at"),
                     last_segment_end=progress_data.get("last_segment_end") or progress_data.get("segment_end"),
+                    pass_info=pass_fields(progress_data),
                 )
 
             if progress_data.get("status") == "failed":
@@ -1274,6 +1324,7 @@ def should_auto_off(handler, repo_root, idle_since: float | None, now: float | N
 
 
 def main() -> None:
+    console_guard.disable_quickedit()  # DEV-175
     parser = argparse.ArgumentParser(
         description=(
             "Watch a folder for videos, transcribe with Whisper, "
