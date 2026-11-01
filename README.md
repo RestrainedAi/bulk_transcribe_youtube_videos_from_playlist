@@ -6,7 +6,7 @@ graphics card. It is part of the Aeonimus workflow: it imports link lists from
 the YouTube URL Lister and shares finished transcripts with the Comment
 Workbench.
 
-**Current version: 1.3.1** (see [CHANGELOG.md](CHANGELOG.md)). Pick a skin (Harbor, Midnight, Graphite or Aurora) in Settings > Appearance. The version
+**Current version: 1.5.2** (see [CHANGELOG.md](CHANGELOG.md)). Pick a skin (Harbor, Midnight, Graphite or Aurora) in Settings > Appearance. The version
 shows in the window title and the sidebar, and lives in `app_version.py`.
 
 ## Who it's for
@@ -24,8 +24,8 @@ service.
 3. Launch with `Open_Watcher_Control_Panel.vbs` (no console window) or
    `Open_Watcher_Control_Panel.cmd`. `Transcription Control Panel.vbs` is the
    same launcher with a clearer name. `Create_Watcher_Control_Panel_Shortcut.ps1`
-   makes a desktop shortcut (its shortcut name still says "Watcher Control
-   Panel").
+   makes a desktop shortcut named **Transcription Workbench** (it removes an old
+   "Transcription Watcher Control Panel" shortcut if one is there).
 
 The launcher runs a quick self-check (`startup_selfcheck.py`) and then
 `watcher_control_panel.py`. Logs go to `logs\`.
@@ -80,13 +80,27 @@ Private or members-only videos cannot be downloaded; the app says so plainly.
 | What | Where |
 |---|---|
 | Incoming files | `watch_incoming\` |
-| Finished videos, audio, transcripts, CSV, JSON | `completed_videos\`, `completed_audio\`, `completed_transcripts\`, `completed_csv\`, `completed_json\` |
+| Finished videos, audio, transcripts, CSV, JSON | `completed_videos\`, `completed_audio\`, `completed_transcripts\`, `completed_csv\`, `completed_json\` (in the Aeonimus Library once moved there; see `data_library.py`, `migrate_to_library.py`) |
 | Shared copies of transcripts | `<library>\transcripts\` (Thomas: `D:\Aeonimus Library\transcripts`) |
 | Settings | `watcher_settings.json` in the app folder (holds optional API keys: never share this file) |
 | Shared handoff settings | `%APPDATA%\Aeonimus\handoff.json` |
 | What it already imported | `%LOCALAPPDATA%\Aeonimus\TranscriptionWorkbench\` |
 
 Handoff contract: [docs/aeonimus-handoff.md](docs/aeonimus-handoff.md).
+
+## Transcribe one file by hand (worker)
+
+The watcher runs `watch_transcribe_worker.py` once per file. You can run it
+yourself:
+
+```
+venv\Scripts\python watch_transcribe_worker.py --input "C:\clips\talk.mp4" --stem talk --progress "C:\clips\talk.progress.json"
+```
+
+Add `--output-dir "C:\clips\out"` (1.5.2) to put that job's `.txt`, `.csv` and
+`.json` in one folder of your choice; it is created if missing. Without it the
+files go to the usual `completed_*` folders. It only affects that one run:
+`watcher_settings.json` and the watcher are not changed.
 
 ## Tests
 

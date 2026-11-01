@@ -20,17 +20,42 @@ def write_progress(progress_path: str, payload: dict) -> None:
     atomic_write_json(progress_path, payload)
 
 
+def apply_output_dir(output_dir: str | None) -> str | None:
+    """Send this job's .txt/.csv/.json to one folder (process-local; shared config untouched).
+
+    Returns the absolute folder, or None when no override was given (default behavior).
+    """
+    if not output_dir:
+        return None
+    out = os.path.abspath(os.path.expanduser(output_dir))
+    os.makedirs(out, exist_ok=True)
+    bt.COMPLETED_TRANSCRIPTS_DIR = out
+    bt.COMPLETED_CSV_DIR = out
+    bt.COMPLETED_JSON_DIR = out
+    return out
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Transcribe one local video file.")
+    parser.add_argument("--input", required=True, help="Path to local video/audio file")
+    parser.add_argument("--stem", required=True, help="Output filename stem")
+    parser.add_argument("--progress", required=True, help="Path to heartbeat/progress JSON")
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Optional: write this job's .txt/.csv/.json here (created if missing). "
+        "Default: the usual completed_* folders. Saved settings are not changed.",
+    )
+    return parser
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-    parser = argparse.ArgumentParser(description="Transcribe one local video file.")
-    parser.add_argument("--input", required=True, help="Path to local video/audio file")
-    parser.add_argument("--stem", required=True, help="Output filename stem")
-    parser.add_argument("--progress", required=True, help="Path to heartbeat/progress JSON")
-    args = parser.parse_args()
+    args = build_parser().parse_args()
 
     input_path = os.path.abspath(args.input)
     stem = args.stem
@@ -48,6 +73,9 @@ def main() -> int:
         "last_segment_end": 0.0,
         "last_segment_text": None,
     }
+    output_dir = apply_output_dir(args.output_dir)
+    if output_dir:
+        progress["output_dir"] = output_dir
     write_progress(progress_path, progress)
     console_guard.disable_quickedit()
 

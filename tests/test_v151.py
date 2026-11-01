@@ -18,7 +18,7 @@ def _seg(start, end, text, ns=0.01, lp=-0.1, cr=1.3, words=None):
 
 def test_version_is_151() -> None:
     import app_version
-    assert app_version.APP_VERSION == "1.5.1"
+    assert tuple(map(int, app_version.APP_VERSION.split("."))) >= (1, 5, 1)
 
 
 def test_quiet_opening_is_reported_uncovered() -> None:

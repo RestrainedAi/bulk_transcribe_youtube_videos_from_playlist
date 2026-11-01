@@ -4,4 +4,4 @@ Bump this on every test build so the version shown in the app changes.
 """
 
 APP_NAME = "Transcription Workbench"
-APP_VERSION = "1.5.1"
+APP_VERSION = "1.5.2"

@@ -2,6 +2,22 @@
 
 All notable changes to the Transcription Workbench.
 
+## 1.5.2 (2026-11-01, test build)
+
+- **New: `--output-dir` for `watch_transcribe_worker.py`.** Optional, per job: that run's `.txt`, `.csv`
+  and `.json` go to the given folder (created if missing). Without it nothing changes. It does not touch
+  `watcher_settings.json` or the watcher. Tests: `tests/test_v152.py`.
+- Desktop shortcut renamed to **Transcription Workbench** (`Create_Watcher_Control_Panel_Shortcut.ps1`
+  now uses that name and removes the old "Transcription Watcher Control Panel" shortcut).
+- README and docs/ARCHITECTURE.md brought up from 1.3.1 to the current entry points and modules.
+- Also in this build (committed on main as 7e60a45, 2026-10-29):
+
+- Progress shows which pass is running ("Pass 2: Granite mm:ss") with a 30 s heartbeat instead of a frozen 100% (DEV-173).
+- Stop Watcher now really stops the watcher and worker processes, checks they're gone, and keeps finished progress for Reconcile (DEV-174).
+- QuickEdit is off in the watcher and worker consoles so a click can't pause a run (DEV-175).
+- Monitor always shows GPU stats; a restart marks a file done when its outputs already exist (DEV-176).
+- Tests: `tests/test_dev173_176.py`.
+
 ## 1.5.1 (2026-10-23, test build)
 
 - **Fixed: the first phrase of a file (about 0:01-0:06) was dropped.** Root cause: with the 1.4.2 speech

@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: **2026-10-17**, version **1.3.1**.
+Last updated: **2026-11-01**, version **1.5.2**.
 
 ## Big picture
 
@@ -28,7 +28,17 @@ completed_transcripts\ .txt, completed_json\ .json, completed_csv\ .csv
 | `coverage_check.py` | Missed-audio check: flags lines over 30 s and gaps over 60 s (start and end of file included). Used by the transcriber, transcript review and the Dashboard. |
 | `youtube_captions.py` | "Use YouTube captions when available": picks a caption track (manual > en-orig > en, never translated), rate-limits and retries HTTP 429, converts json3 to segments, writes txt/srt/vtt/json/csv and the library copy. Called by the download queue before the audio download; returns None to fall back to Whisper. |
 | `watch_and_transcribe.py` | The watcher: sees new or renamed files in the watch folder and queues them. |
-| `watch_transcribe_worker.py` | Transcribes one file with faster-whisper (GPU model large-v3-turbo by default) and writes .txt/.json/.csv. |
+| `watch_transcribe_worker.py` | Transcribes one file (one process per file) and writes .txt/.json/.csv. Args: `--input`, `--stem`, `--progress` (heartbeat JSON with per-pass timings), optional `--output-dir` (1.5.2: this job's outputs go to that folder, created if missing; process-local, settings untouched). |
+| `speaker_labels.py` | Optional "Label speakers" (1.5.0): local sherpa-onnx diarization with permissive ONNX models, `speakers.json` renaming. |
+| `speech_rescue.py` | 1.5.1: rescues speech that the VAD found but Whisper skipped (the dropped first phrase fix). |
+| `vocal_separation.py` | Optional vocal separation for the Music/lyrics audio mode (1.4.0). |
+| `asr_engines.py`, `asr_eval_worker.py` | Optional extra engines (Voxtral, Granite) run in a separate venv (`venv_asr_eval`); pass events feed the worker's progress. |
+| `data_library.py`, `migrate_to_library.py` | Shared data folders in the Aeonimus Library (1.4.0) and the one-time copy into it. |
+| `output_paths.py` | Output folder layout used by the watcher and the worker. |
+| `queue_control.py`, `failed_jobs.py` | Pause / reorder / skip (`queue_control.json`) and "Re-run failed" from `watch_events.log`. |
+| `file_fingerprint.py` | Size + sampled SHA-256 so a file already transcribed is skipped. |
+| `transcript_search.py`, `transcript_review.py` | Subtitles and the FTS5 search index (`transcript_index.sqlite`); reviewing and correcting flagged segments. |
+| `system_health.py`, `console_guard.py`, `support_tools.py`, `startup_selfcheck.py`, `safe_io.py` | GPU/disk health, QuickEdit off for consoles, support report, launch self-check, atomic writes. |
 | `watcher_settings.py` | Loads and saves `watcher_settings.json`. |
 | `watcher_telemetry.py` | Heartbeat and progress reporting. |
 | `post_transcript_handoff.py` | Optional: send a finished transcript to NotebookLM (clipboard), LM Studio or an AI service. |
@@ -36,7 +46,8 @@ completed_transcripts\ .txt, completed_json\ .json, completed_csv\ .csv
 | `bulk_transcribe_youtube_videos_from_playlist.py` | Whisper transcription core (started from the upstream script): decode profiles auto / speech (robust) / music / legacy, GPU-then-CPU attempts, the auto music retry, and `coverage_warnings` in the JSON and `.flags.txt`. |
 | `transcript_reader.html` | Simple reader for transcripts in a browser. |
 | `start_watcher.ps1`, `stop_watcher.ps1` | Start and stop the watcher from PowerShell. |
-| `tests/` | pytest suites (handoff, YouTube intake, Suno links, caption export, and more). |
+| `Create_Watcher_Control_Panel_Shortcut.ps1` | Makes the "Transcription Workbench" desktop shortcut (to `Open_Watcher_Control_Panel.vbs`, app icon). |
+| `tests/` | pytest suites (handoff, YouTube intake, Suno links, caption export, per-version suites `test_v140.py` .. `test_v152.py`, and more). |
 
 Since the 2026-10-17 snapshot every module the app imports is committed.
 
